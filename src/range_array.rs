@@ -61,7 +61,7 @@ where
             }
             i += 1;
         }
-        
+
         if p + 1 < i {
             self.array.drain(p + 1..i);
         }

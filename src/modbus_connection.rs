@@ -1,13 +1,12 @@
 use crate::error::DynResult;
-use crate::observable_array::ObservableArray;
 use crate::tags::Tags;
 use bytes::Bytes;
 use std::future::{self, Future};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::SocketAddr;
 use std::pin::Pin;
-use tokio_modbus::server::tcp::Server as TcpServer;
 use tokio_modbus::server::rtu::Server as RtuServer;
-use std::path::Path;
+use tokio_modbus::server::tcp::Server as TcpServer;
+use tokio_serial::SerialStream;
 
 #[allow(unused_imports)]
 use log::{debug, error};
@@ -47,9 +46,8 @@ impl tokio_modbus::server::Service for ModbusService {
                 }
             }),
             Self::Request::WriteSingleRegister(addr, value) => {
-               
                 if (addr as usize) < holding_regs.len() {
-                    debug!("Write: {} {}",addr, value);
+                    debug!("Write: {} {}", addr, value);
                     holding_regs.update(addr as usize, &[value]);
                     Ok(Self::Response::WriteSingleRegister(addr, value))
                 } else {
@@ -93,8 +91,8 @@ pub async fn server_tcp(socket: SocketAddr, tags: Tags) -> DynResult<()> {
     }
 }
 
-pub async fn server_rtu<P>(path: P, baud_rate: u32, tags: Tags) -> DynResult<()> where P: AsRef<Path> {
-    let server = RtuServer::new_from_path(path, baud_rate)?;
+pub async fn server_rtu(ser: SerialStream, tags: Tags) -> DynResult<()> {
+    let server = RtuServer::new(ser);
     let service = ModbusNewService::new(tags);
     server.serve_forever(service).await;
     Ok(())

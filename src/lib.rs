@@ -6,5 +6,5 @@ pub mod range_array;
 pub mod tag_list;
 pub mod tag_list_xhtml;
 pub mod tag_list_xml;
-pub mod web_server;
 pub mod tags;
+pub mod web_server;

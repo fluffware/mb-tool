@@ -2,7 +2,6 @@ use bytes::Bytes;
 use clap::Parser;
 use log::{debug, error, info};
 use mb_tool::modbus_connection;
-use mb_tool::observable_array::ObservableArray;
 use mb_tool::tag_list_xml;
 use mb_tool::tags::Tags;
 use roxmltree::Document;
@@ -13,6 +12,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, mpsc};
+use tokio_serial::SerialStream;
 
 use mb_tool::build_main_page;
 use mb_tool::web_server;
@@ -103,7 +103,7 @@ struct CmdArgs {
     port: u16,
     /// Serial device
     #[arg(long)]
-    serial_device: Option<PathBuf>,
+    serial_device: Option<String>,
     #[arg(long)]
     baud_rate: Option<u32>,
 }
@@ -133,10 +133,19 @@ pub async fn main() -> ExitCode {
     let tags = Tags::new(&tag_list.read().unwrap());
     tokio::spawn(mb_task(tags.clone(), mb_send.clone(), mb_receive));
     if let Some(path) = args.serial_device {
-        for p in tokio_serial::available_ports().unwrap() {
-            info!("{}: {:?}", p.port_name, p.port_type);
+        let builder = tokio_serial::new(path, args.baud_rate.unwrap_or(9600));
+        match SerialStream::open(&builder) {
+            Ok(ser) => {
+                tokio::spawn(modbus_connection::server_rtu(ser, tags.clone()));
+            }
+            Err(e) => {
+                error!("Failed to open serial port: {}", e);
+                for p in tokio_serial::available_ports().unwrap() {
+                    info!("Available device {}: {:?}", p.port_name, p.port_type);
+                }
+                return ExitCode::FAILURE;
+            }
         }
-        tokio::spawn(modbus_connection::server_rtu(path, args.baud_rate.unwrap_or(9600),tags.clone()));
     } else {
         tokio::spawn(modbus_connection::server_tcp(
             SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 502)),
