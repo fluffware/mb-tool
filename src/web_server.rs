@@ -128,7 +128,7 @@ async fn handle(conf: Arc<Mutex<ServerConfig>>, req: Request<Body>) -> DynResult
                         Response::builder()
                             .status(StatusCode::INTERNAL_SERVER_ERROR)
                             .header(header::CONTENT_TYPE, "text/plain")
-                            .body(Body::from(format!("File error: {}", e)))
+                            .body(Body::from(format!("File error: {e}")))
                     })
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
             }
@@ -136,7 +136,7 @@ async fn handle(conf: Arc<Mutex<ServerConfig>>, req: Request<Body>) -> DynResult
         m => Response::builder()
             .status(StatusCode::METHOD_NOT_ALLOWED)
             .header(header::CONTENT_TYPE, "text/plain")
-            .body(Body::from(format!("Method {} not supported", m)))
+            .body(Body::from(format!("Method {m} not supported")))
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
     }
 }
@@ -156,6 +156,6 @@ pub async fn run_server(conf: ServerConfig) {
 
     // And run forever...
     if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+        error!("server error: {e}");
     }
 }

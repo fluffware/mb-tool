@@ -151,4 +151,10 @@ where
         let base = self.base.read().unwrap();
         base.array.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        let base = self.base.read().unwrap();
+        base.array.is_empty()
+    }
+
 }

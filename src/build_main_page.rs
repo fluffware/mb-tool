@@ -25,15 +25,15 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
             r#"<script src="/modbus.js"/>
             "#
         )?;
-        write!(w, "</head>")?;
-        write!(w, "<body onload=\"setup()\">\n")?;
+        writeln!(w, "</head>")?;
+        writeln!(w, "<body onload=\"setup()\">")?;
         let tag_list = tag_list
             .read()
             .map_err(|_| "Failed to get read lock for tag list")?;
-        write!(w, "<div id=\"holding_registers\">\n")?;
+        writeln!(w, "<div id=\"holding_registers\">")?;
         tag_list_xhtml::build_register_list(&mut w, &tag_list.holding_registers)?;
-        write!(w, "\n</div>")?;
-        write!(w, "\n</body></xhtml>")?;
+        writeln!(w, "\n</div>")?;
+        writeln!(w, "</body></xhtml>")?;
         let resp = Response::builder()
             .header("Content-Type", "application/xhtml+xml")
             .status(StatusCode::OK);

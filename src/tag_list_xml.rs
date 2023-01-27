@@ -49,8 +49,8 @@ impl std::fmt::Display for ParseErrorKind {
             UnexpectedElement => write!(f, "Unexpected element"),
             UnexpectedText => write!(f, "Unexpected non-whitespace text"),
             UnexpectedAttribute => write!(f, "Unexpected attribute"),
-            MissingAttribute(name) => write!(f, "Missing attribute '{}'", name),
-            ParseAttribute(name, err) => write!(f, "Failed to parse attribute '{}': {}", name, err),
+            MissingAttribute(name) => write!(f, "Missing attribute '{name}'"),
+            ParseAttribute(name, err) => write!(f, "Failed to parse attribute '{name}': {err}"),
             BitRange => write!(
                 f,
                 "Either use attribute 'bit' or both of 'bit-low' and 'bit-high'"
@@ -62,14 +62,14 @@ impl std::fmt::Display for ParseErrorKind {
 fn check_element_ns(node: &Node) -> Result<bool, ParseError> {
     if node.is_element() {
         if node.tag_name().namespace() != Some(NS) {
-            return Err(ParseError::new(&node, WrongNamespace));
+            return Err(ParseError::new(node, WrongNamespace));
         }
         return Ok(true);
     } else if node.is_text() {
         if let Some(text) = node.text() {
             // Don't allow non-whitespace around elements
             if text.find(|c: char| !c.is_whitespace()).is_some() {
-                return Err(ParseError::new(&node, UnexpectedText));
+                return Err(ParseError::new(node, UnexpectedText));
             }
         }
     }
@@ -83,9 +83,9 @@ where
 {
     let attr_str = node
         .attribute(name)
-        .ok_or_else(|| ParseError::new(&node, MissingAttribute(name.to_string())))?;
+        .ok_or_else(|| ParseError::new(node, MissingAttribute(name.to_string())))?;
     let res: Result<T, <T as FromStr>::Err> = attr_str.parse();
-    res.map_err(|e| ParseError::new(&node, ParseAttribute(name.to_string(), e.into())))
+    res.map_err(|e| ParseError::new(node, ParseAttribute(name.to_string(), e.into())))
 }
 
 fn optional_attribute<T>(node: &Node, name: &str) -> Result<Option<T>, ParseError>
@@ -101,17 +101,17 @@ where
     match res {
         Ok(res) => Ok(Some(res)),
         Err(e) => Err(ParseError::new(
-            &node,
+            node,
             ParseAttribute(name.to_string(), e.into()),
         )),
     }
 }
 
 pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
-    let bit: Option<u8> = optional_attribute(&node, "bit")?;
-    let bit_low: Option<u8> = optional_attribute(&node, "bit-low")?;
-    let bit_high: Option<u8> = optional_attribute(&node, "bit-high")?;
-    let label: Option<String> = optional_attribute(&node, "label")?;
+    let bit: Option<u8> = optional_attribute(node, "bit")?;
+    let bit_low: Option<u8> = optional_attribute(node, "bit-low")?;
+    let bit_high: Option<u8> = optional_attribute(node, "bit-high")?;
+    let label: Option<String> = optional_attribute(node, "label")?;
     let (bit_low, bit_high) = match (bit, bit_low, bit_high) {
         (Some(bit), None, None) => (bit, bit),
         (None, Some(low), Some(high)) => (low, high),
@@ -125,10 +125,10 @@ pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
 }
 
 pub fn parse_register(node: &Node) -> Result<Register, ParseError> {
-    let address: u16 = required_attribute::<ParsedU16>(&node, "addr")?.into();
-    let label: Option<String> = optional_attribute(&node, "label")?;
+    let address: u16 = required_attribute::<ParsedU16>(node, "addr")?.into();
+    let label: Option<String> = optional_attribute(node, "label")?;
     let initial_value: Option<u16> =
-        optional_attribute::<ParsedU16>(&node, "initial-value")?.map(|i| u16::from(i));
+        optional_attribute::<ParsedU16>(node, "initial-value")?.map(u16::from);
     let mut fields = Vec::new();
     for child in node.children() {
         if check_element_ns(&child)? {
@@ -137,7 +137,7 @@ pub fn parse_register(node: &Node) -> Result<Register, ParseError> {
                     let field = parse_register_field(&child)?;
                     fields.push(field);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement).into()),
+                _ => return Err(ParseError::new(&child, UnexpectedElement)),
             }
         }
     }
@@ -158,7 +158,7 @@ pub fn parse_registers(parent: &Node) -> Result<Vec<Register>, ParseError> {
                     let reg = parse_register(&child)?;
                     regs.push(reg);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement).into()),
+                _ => return Err(ParseError::new(&child, UnexpectedElement)),
             }
         }
     }
@@ -172,7 +172,7 @@ impl FromStr for ParsedBit {
         match s {
             "1" => Ok(ParsedBit(true)),
             "0" => Ok(ParsedBit(false)),
-            _ => bool::from_str(s).map(|b| ParsedBit(b)),
+            _ => bool::from_str(s).map(ParsedBit),
         }
     }
 }
@@ -187,7 +187,7 @@ struct ParsedU16(u16);
 impl FromStr for ParsedU16 {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, ParseIntError> {
-        let (s, neg) = match s.strip_prefix("-") {
+        let (s, neg) = match s.strip_prefix('-') {
             Some(s) => (s, true),
             None => (s, false),
         };
@@ -196,11 +196,11 @@ impl FromStr for ParsedU16 {
         } else if let Some(s) = s.strip_prefix("0b") {
             u16::from_str_radix(s, 2)
         } else {
-            u16::from_str_radix(s, 10)
+            str::parse(s)
         };
         pos_int
             .map(|i| if neg { (-(i as i16)) as u16 } else { i })
-            .map(|b| ParsedU16(b))
+            .map(ParsedU16)
     }
 }
 
@@ -211,10 +211,10 @@ impl From<ParsedU16> for u16 {
 }
 
 pub fn parse_bit(node: &Node) -> Result<Bit, ParseError> {
-    let address: u16 = required_attribute::<ParsedU16>(&node, "addr")?.into();
-    let label: Option<String> = optional_attribute(&node, "label")?;
+    let address: u16 = required_attribute::<ParsedU16>(node, "addr")?.into();
+    let label: Option<String> = optional_attribute(node, "label")?;
     let initial_value: Option<bool> =
-        optional_attribute::<ParsedBit>(&node, "initial-value")?.map(|b| b.into());
+        optional_attribute::<ParsedBit>(node, "initial-value")?.map(|b| b.into());
 
     Ok(Bit {
         address,
@@ -232,7 +232,7 @@ pub fn parse_bits(parent: &Node) -> Result<Vec<Bit>, ParseError> {
                     let bit = parse_bit(&child)?;
                     bits.push(bit);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement).into()),
+                _ => return Err(ParseError::new(&child, UnexpectedElement)),
             }
         }
     }
@@ -263,15 +263,15 @@ pub fn parse_tag_list(node: &Node) -> Result<TagList, ParseError> {
                     let bits = parse_bits(&child)?;
                     coils = Some(bits);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement).into()),
+                _ => return Err(ParseError::new(&child, UnexpectedElement)),
             }
         }
     }
     Ok(TagList {
-        holding_registers: holding_registers.unwrap_or_else(|| Vec::<Register>::new()),
-        input_registers: input_registers.unwrap_or_else(|| Vec::<Register>::new()),
-        discrete_inputs: discrete_inputs.unwrap_or_else(|| Vec::<Bit>::new()),
-        coils: coils.unwrap_or_else(|| Vec::<Bit>::new()),
+        holding_registers: holding_registers.unwrap_or_default(),
+        input_registers: input_registers.unwrap_or_default(),
+        discrete_inputs: discrete_inputs.unwrap_or_default(),
+        coils: coils.unwrap_or_default(),
     })
 }
 

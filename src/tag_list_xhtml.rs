@@ -14,7 +14,7 @@ fn build_field<W: Write>(w: &mut W, field: &RegisterField, register: &Register) 
     }
 
     if let Some(label) = &field.label {
-        write!(w, r#"<span class="field_label">{}</span>"#, label)?;
+        write!(w, r#"<span class="field_label">{label}</span>"#)?;
     }
     write!(
         w,
@@ -33,7 +33,7 @@ fn build_register<W: Write>(w: &mut W, register: &Register) -> Result {
         register.address
     )?;
     if let Some(label) = &register.label {
-        write!(w, r#"<span class="register_label">{}</span>"#, label)?;
+        write!(w, r#"<span class="register_label">{label}</span>"#)?;
     }
     write!(
         w,

@@ -78,6 +78,15 @@ where
     }
 }
 
+impl<T> Default for RangeArray<T>
+where
+    T: Ord + Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a, T> IntoIterator for &'a RangeArray<T>
 where
     T: Ord + Clone,
