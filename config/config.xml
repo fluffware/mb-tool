@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tag-list xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v1">
+    <holding-registers>
+        <register addr="0" label="Reg 0" initial-value="7">
+            <field bit="0" label="0.0" />
+            <field bit-low="1" bit-high="8" label="0.1-8" />
+        </register>
+        <register addr="1" label="Reg 1" />
+        <register addr="2" label="Reg 2" />
+        <register addr="3" label="Reg 3" />
+    </holding-registers>
+    <input-registers />
+    <discrete-inputs/>
+    <coils>
+        <bit addr="3" label="Bit 3" initial-value="1"/>
+        <bit addr="6" label="Bit 6" initial-value="0"/>
+    </coils>
+</tag-list>

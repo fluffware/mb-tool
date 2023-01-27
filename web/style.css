@@ -1,0 +1,9 @@
+.register_addr {
+    width: 3em;
+    display: inline-block;
+}
+
+.field_bits {
+    width: 3em;
+    display: inline-block;
+}
