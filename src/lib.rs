@@ -7,4 +7,5 @@ pub mod tag_list;
 pub mod tag_list_xhtml;
 pub mod tag_list_xml;
 pub mod tags;
+pub mod tag_ranges;
 pub mod web_server;

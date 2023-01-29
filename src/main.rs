@@ -2,7 +2,9 @@ use bytes::Bytes;
 use clap::Parser;
 use log::{debug, error, info};
 use mb_tool::modbus_connection;
+use mb_tool::observable_array::ObservableArray;
 use mb_tool::tag_list_xml;
+use mb_tool::tag_ranges::TagRanges;
 use mb_tool::tags::Tags;
 use roxmltree::Document;
 use std::fs::File;
@@ -12,6 +14,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, mpsc};
+use tokio_modbus::slave::Slave;
 use tokio_serial::SerialStream;
 
 use mb_tool::build_main_page;
@@ -22,12 +25,34 @@ use serde_derive::{Deserialize, Serialize};
 enum MbCommands {
     UpdateHoldingRegs { start: u16, regs: Vec<u16> },
     UpdateInputRegs { start: u16, regs: Vec<u16> },
-    UpdateInputs { start: u16, regs: Vec<bool> },
+    UpdateDiscreteInputs { start: u16, regs: Vec<bool> },
     UpdateCoils { start: u16, regs: Vec<bool> },
     RequestHoldingRegs { start: u16, length: u16 },
     RequestInputRegs { start: u16, length: u16 },
-    RequestInputs { start: u16, length: u16 },
+    RequestDiscreteInputs { start: u16, length: u16 },
     RequestCoils { start: u16, length: u16 },
+}
+
+fn ws_request<T, F>(
+    array: &ObservableArray<T>,
+    mb_send: &broadcast::Sender<Bytes>,
+    start: u16,
+    length: u16,
+    f: F,
+) where
+    F: FnOnce(u16, Vec<T>) -> MbCommands,
+    T: Default + Clone,
+{
+    let reply = array.get_array(|r| {
+        f(
+            start,
+            Vec::from(&r[(start as usize)..((start + length) as usize)]),
+        )
+    });
+
+    let bytes = Bytes::from(serde_json::to_string(&reply).unwrap());
+    // Only returns error if no client is connected
+    let _ = mb_send.send(bytes);
 }
 
 async fn mb_task(
@@ -39,31 +64,61 @@ async fn mb_task(
         tokio::select! {
             Some(data) = mb_receive.recv() =>
             {
-                 match std::str::from_utf8(&data[..]) {
+                match std::str::from_utf8(&data[..]) {
 
                     Ok(json) => {
                         debug!("JSON: {}", json);
                         if let Ok(cmd) = serde_json::from_str::<MbCommands>(json) {
-
+			    
                             match cmd {
+				// Holding registers
                                 MbCommands::RequestHoldingRegs{start, length} => {
                                     debug!("RequestHoldingRegs");
-                                    let reply =
-                                    tags.holding_registers.get_array(|r| {
-                                        MbCommands::UpdateHoldingRegs{start:0, regs: Vec::from(&r[(start as usize) .. ((start+length) as usize)])}
-
-                                    });
-                                    let bytes = Bytes::from(serde_json::to_string(&reply).unwrap());
-                                    // Only returns error if no client is connected
-                                    let _ = mb_send.send(bytes);
+				    ws_request(&tags.holding_registers, &mb_send,start, length,
+					       |start, regs| {
+						   MbCommands::UpdateHoldingRegs{start, regs}
+					       });
+				    
                                 } ,
                                 MbCommands::UpdateHoldingRegs{start, regs: reg_data} => {
                                     tags.holding_registers.update(start as usize, &reg_data);
-                                    debug!("updated: {}", start)
                                 } ,
-                                _cmd => {
-                                    error!("Unhandled command")
-                                }
+
+				// Input registers
+				MbCommands::RequestInputRegs{start, length} => {
+				    debug!("RequestInputRegs");
+				    ws_request(&tags.input_registers, &mb_send,start, length,
+					       |start, regs| {
+						   MbCommands::UpdateInputRegs{start, regs}
+					       });
+                                } ,
+                                MbCommands::UpdateInputRegs{start, regs: reg_data} => {
+                                    tags.input_registers.update(start as usize, &reg_data);
+                                } ,
+
+				// Coils
+				MbCommands::RequestCoils{start, length} => {
+				    debug!("RequestCoils");
+				    ws_request(&tags.coils, &mb_send,start, length,
+					       |start, regs| {
+						   MbCommands::UpdateCoils{start, regs}
+					       });
+                                } ,
+                                MbCommands::UpdateCoils{start, regs: reg_data} => {
+                                    tags.coils.update(start as usize, &reg_data);
+                                } ,
+				
+				// Discrete inputs
+				MbCommands::RequestDiscreteInputs{start, length} => {
+				    debug!("RequestDiscreteInputs");
+				    ws_request(&tags.discrete_inputs, &mb_send,start, length,
+					       |start, regs| {
+						   MbCommands::UpdateDiscreteInputs{start, regs}
+					       });
+                                } ,
+                                MbCommands::UpdateDiscreteInputs{start, regs: reg_data} => {
+                                    tags.discrete_inputs.update(start as usize, &reg_data);
+                                } ,
                             }
 
                         }
@@ -83,6 +138,18 @@ async fn mb_task(
                     let bytes = Bytes::from(serde_json::to_string(&cmd).unwrap());
                     let _ = mb_send.send(bytes);
                 }
+            },
+         updated = tags.input_registers.updated() =>
+            {
+                for range in &updated {
+                    let cmd =
+                        tags.input_registers.get_array(|r| {
+                            MbCommands::UpdateInputRegs{start:range.start as u16, regs: Vec::from(&r[range.start .. range.end])}
+                        });
+
+                    let bytes = Bytes::from(serde_json::to_string(&cmd).unwrap());
+                    let _ = mb_send.send(bytes);
+                }
             }
         }
     }
@@ -95,17 +162,23 @@ struct CmdArgs {
     /// Run as server
     #[arg(long, default_value_t = false)]
     server: bool,
-    /// Address of server
-    #[arg()]
-    address: Option<Ipv4Addr>,
+    /// IP-address of server
+    #[arg(long)]
+    ip_address: Option<Ipv4Addr>,
+    /// Modbus address of server
+    #[arg(long, default_value_t = 1)]
+    mb_address: u8,
+    /// Modbus TCP port
     #[arg(long, default_value_t = 502)]
-    /// TCP port
-    port: u16,
+    mb_port: u16,
     /// Serial device
     #[arg(long)]
     serial_device: Option<String>,
     #[arg(long)]
     baud_rate: Option<u32>,
+    /// HTTP port
+    #[arg(long, default_value_t = 8090)]
+    http_port: u16,
 }
 
 #[tokio::main]
@@ -131,28 +204,58 @@ pub async fn main() -> ExitCode {
     let (ws_send, mb_receive) = mpsc::channel(4);
     let (mb_send, _) = broadcast::channel(4);
     let tags = Tags::new(&tag_list.read().unwrap());
+    let ranges = TagRanges::from(&*tag_list.read().unwrap());
     tokio::spawn(mb_task(tags.clone(), mb_send.clone(), mb_receive));
-    if let Some(path) = args.serial_device {
-        let builder = tokio_serial::new(path, args.baud_rate.unwrap_or(9600));
-        match SerialStream::open(&builder) {
-            Ok(ser) => {
-                tokio::spawn(modbus_connection::server_rtu(ser, tags.clone()));
-            }
-            Err(e) => {
-                error!("Failed to open serial port: {}", e);
-                for p in tokio_serial::available_ports().unwrap() {
-                    info!("Available device {}: {:?}", p.port_name, p.port_type);
+    if args.server {
+        if let Some(path) = args.serial_device {
+            let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
+            match SerialStream::open(&builder) {
+                Ok(ser) => {
+                    tokio::spawn(modbus_connection::server_rtu(ser, tags.clone(), ranges));
+                    info!("Running as RTU server on {}", path);
                 }
-                return ExitCode::FAILURE;
+                Err(e) => {
+                    error!("Failed to open serial port: {}", e);
+                    for p in tokio_serial::available_ports().unwrap() {
+                        info!("Available device {}: {:?}", p.port_name, p.port_type);
+                    }
+                    return ExitCode::FAILURE;
+                }
             }
+        } else {
+            let addr = Ipv4Addr::new(127, 0, 0, 1);
+            let port = 502;
+            tokio::spawn(modbus_connection::server_tcp(
+                SocketAddr::V4(SocketAddrV4::new(addr, port)),
+                tags.clone(),
+            ));
+            info!("Running as TCP server at {}:{}", addr, port);
         }
     } else {
-        tokio::spawn(modbus_connection::server_tcp(
-            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 502)),
-            tags.clone(),
-        ));
+        if let Some(path) = args.serial_device {
+            let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
+            match SerialStream::open(&builder) {
+                Ok(ser) => {
+                    tokio::spawn(modbus_connection::client_rtu(
+                        ser,
+                        Slave(args.mb_address),
+                        tags.clone(),
+                        ranges,
+                    ));
+                    info!("Running as RTU client on {}", path);
+                }
+                Err(e) => {
+                    error!("Failed to open serial port: {}", e);
+                    for p in tokio_serial::available_ports().unwrap() {
+                        info!("Available device {}: {:?}", p.port_name, p.port_type);
+                    }
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
     }
     let conf = web_server::ServerConfig::new(ws_send, mb_send);
+    let conf = conf.port(args.http_port);
     let conf = conf.build_page(build_main_page::build_page(tag_list));
     web_server::run_server(conf).await;
     ExitCode::SUCCESS
