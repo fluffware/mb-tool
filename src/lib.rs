@@ -3,6 +3,8 @@ pub mod error;
 pub mod modbus_connection;
 pub mod observable_array;
 pub mod range_array;
+pub mod presentation;
+pub mod encoding;
 pub mod tag_list;
 pub mod tag_list_xhtml;
 pub mod tag_list_xml;

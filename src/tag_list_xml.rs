@@ -1,4 +1,6 @@
-use crate::tag_list::{Bit, Register, RegisterField, TagList};
+use crate::encoding::{ByteOrder, Encoding, WordOrder};
+use crate::presentation::{DisplayType, Presentation};
+use crate::tag_list::{Bit, RegisterField, RegisterRange, TagList};
 use roxmltree::{Node, TextPos};
 use std::error::Error;
 use std::num::ParseIntError;
@@ -40,6 +42,10 @@ pub enum ParseErrorKind {
     MissingAttribute(String),
     ParseAttribute(String, Box<dyn Error + Send + Sync>),
     BitRange,
+    InvalidByteOrder,
+    InvalidWordOrder,
+    InvalidSign,
+    InvalidDisplayType,
 }
 
 impl std::fmt::Display for ParseErrorKind {
@@ -54,6 +60,13 @@ impl std::fmt::Display for ParseErrorKind {
             BitRange => write!(
                 f,
                 "Either use attribute 'bit' or both of 'bit-low' and 'bit-high'"
+            ),
+            InvalidByteOrder => write!(f, "Invalid byte order"),
+            InvalidWordOrder => write!(f, "Invalid word order"),
+            InvalidSign => write!(f, "Attribute 'sign' must be either 'signed' or 'unsigned'"),
+            InvalidDisplayType => write!(
+                f,
+                "Attribute 'display' must be one of 'integer', 'float', or 'string'"
             ),
         }
     }
@@ -107,6 +120,68 @@ where
     }
 }
 
+pub fn parse_presentation(node: &Node) -> Result<Presentation, ParseError> {
+    let display = match optional_attribute::<String>(node, "display")?
+        .map(|s| s.as_str())
+        .unwrap_or_else(|| "integer")
+    {
+        "integer" => {
+            let signed = match optional_attribute::<String>(node, "sign")?.map(|s| s.as_str()) {
+                Some("signed") => true,
+                Some("unsigned") => false,
+                Some(_) => return Err(ParseError::new(node, ParseErrorKind::InvalidSign)),
+                None => false,
+            };
+            let base = optional_attribute::<u8>(node, "base")?.unwrap_or(10);
+            DisplayType::Integer { signed, base }
+        }
+        "float" => {
+            let decimals = optional_attribute::<u8>(node, "decimals")?.unwrap_or(2);
+            DisplayType::Float { decimals }
+        }
+        "string" => DisplayType::String { fill: '\0' },
+        _ => return Err(ParseError::new(node, ParseErrorKind::InvalidDisplayType)),
+    };
+    let scale: f32 = optional_attribute(node, "scale")?.unwrap_or(1.0);
+    let unit: Option<String> = optional_attribute(node, "unit")?;
+    Ok(Presentation {
+        display,
+        scale,
+        unit,
+    })
+}
+
+pub fn parse_encoding(node: &Node) -> Result<Encoding, ParseError> {
+    let byte_order = match optional_attribute::<String>(node, "byte-order")? {
+        Some(s) => {
+            if s.starts_with("little") {
+                ByteOrder::LittleEndian
+            } else if s.starts_with("big") {
+                ByteOrder::BigEndian
+            } else {
+                return Err(ParseError::new(node, ParseErrorKind::InvalidByteOrder));
+            }
+        }
+        None => ByteOrder::BigEndian,
+    };
+    let word_order = match optional_attribute::<String>(node, "word-order")? {
+        Some(s) => {
+            if s.starts_with("little") {
+                WordOrder::LittleEndian
+            } else if s.starts_with("big") {
+                WordOrder::BigEndian
+            } else {
+                return Err(ParseError::new(node, ParseErrorKind::InvalidByteOrder));
+            }
+        }
+        None => WordOrder::BigEndian,
+    };
+    Ok(Encoding {
+        byte_order,
+        word_order,
+    })
+}
+
 pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
     let bit: Option<u8> = optional_attribute(node, "bit")?;
     let bit_low: Option<u8> = optional_attribute(node, "bit-low")?;
@@ -117,20 +192,31 @@ pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
         (None, Some(low), Some(high)) => (low, high),
         _ => return Err(ParseError::new(node, ParseErrorKind::BitRange)),
     };
+    let presentation = parse_presentation(node)?;
     Ok(RegisterField {
         bit_low,
         bit_high,
         label,
+        presentation,
     })
 }
 
-pub fn parse_register(node: &Node) -> Result<Register, ParseError> {
-    let address: u16 = required_attribute::<ParsedU16>(node, "addr")?.into();
+pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
+    let address_low: u16;
+    let address_high: u16;
+    if node.tag_name().name() == "register" {
+        address_low = required_attribute::<ParsedU16>(node, "addr")?.into();
+        address_high = address_low;
+    } else {
+        address_low = required_attribute::<ParsedU16>(node, "addr-low")?.into();
+        address_high = required_attribute::<ParsedU16>(node, "addr-high")?.into();
+    }
     let label: Option<String> = optional_attribute(node, "label")?;
     let initial_value: Option<u16> =
         optional_attribute::<ParsedU16>(node, "initial-value")?.map(u16::from);
-    let scale : f32 = optional_attribute(node, "scale")?.unwrap_or(1.0);
-    let unit: Option<String> = optional_attribute(node, "unit")?;
+    let presentation = parse_presentation(node)?;
+    let encoding = parse_encoding(node)?;
+
     let mut fields = Vec::new();
     for child in node.children() {
         if check_element_ns(&child)? {
@@ -143,22 +229,27 @@ pub fn parse_register(node: &Node) -> Result<Register, ParseError> {
             }
         }
     }
-    Ok(Register {
-        address,
+    Ok(RegisterRange {
+        address_low,
+        address_high,
         label,
         fields,
         initial_value,
-        scale,
-        unit,
+        presentation,
+        encoding,
     })
 }
 
-pub fn parse_registers(parent: &Node) -> Result<Vec<Register>, ParseError> {
+pub fn parse_registers(parent: &Node) -> Result<Vec<RegisterRange>, ParseError> {
     let mut regs = Vec::new();
     for child in parent.children() {
         if check_element_ns(&child)? {
             match child.tag_name().name() {
                 "register" => {
+                    let reg = parse_register(&child)?;
+                    regs.push(reg);
+                }
+                "register-range" => {
                     let reg = parse_register(&child)?;
                     regs.push(reg);
                 }

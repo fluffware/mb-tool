@@ -34,10 +34,10 @@ impl From<&TagList> for TagRanges
     {
 	let mut ranges = Self::new();
 	for reg in &tag_list.input_registers {
-	    ranges.input_registers.union(&(reg.address..reg.address + 1));
+	    ranges.input_registers.union(&(reg.address_low..reg.address_high + 1));
 	}
 	for reg in &tag_list.holding_registers {
-	    ranges.holding_registers.union(&(reg.address..reg.address + 1));
+	    ranges.holding_registers.union(&(reg.address_low..reg.address_high + 1));
 	}
 	for bit in &tag_list.discrete_inputs {
 	    ranges.discrete_inputs.union(&(bit.address..bit.address + 1));
