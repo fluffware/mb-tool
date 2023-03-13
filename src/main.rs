@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use clap::Parser;
 use log::{debug, error, info};
+use mb_tool::error::DynResult;
 use mb_tool::modbus_connection;
 use mb_tool::observable_array::ObservableArray;
 use mb_tool::tag_list_xml;
@@ -14,6 +15,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, mpsc};
+use tokio::task::JoinHandle;
 use tokio_modbus::slave::Slave;
 use tokio_serial::SerialStream;
 
@@ -69,52 +71,52 @@ async fn mb_task(
                     Ok(json) => {
                         debug!("JSON: {}", json);
                         if let Ok(cmd) = serde_json::from_str::<MbCommands>(json) {
-			    
+
                             match cmd {
-				// Holding registers
+                // Holding registers
                                 MbCommands::RequestHoldingRegs{start, length} => {
                                     debug!("RequestHoldingRegs");
-				    ws_request(&tags.holding_registers, &mb_send,start, length,
-					       |start, regs| {
-						   MbCommands::UpdateHoldingRegs{start, regs}
-					       });
-				    
+                    ws_request(&tags.holding_registers, &mb_send,start, length,
+                           |start, regs| {
+                           MbCommands::UpdateHoldingRegs{start, regs}
+                           });
+
                                 } ,
                                 MbCommands::UpdateHoldingRegs{start, regs: reg_data} => {
                                     tags.holding_registers.update(start as usize, &reg_data);
                                 } ,
 
-				// Input registers
-				MbCommands::RequestInputRegs{start, length} => {
-				    debug!("RequestInputRegs");
-				    ws_request(&tags.input_registers, &mb_send,start, length,
-					       |start, regs| {
-						   MbCommands::UpdateInputRegs{start, regs}
-					       });
+                // Input registers
+                MbCommands::RequestInputRegs{start, length} => {
+                    debug!("RequestInputRegs");
+                    ws_request(&tags.input_registers, &mb_send,start, length,
+                           |start, regs| {
+                           MbCommands::UpdateInputRegs{start, regs}
+                           });
                                 } ,
                                 MbCommands::UpdateInputRegs{start, regs: reg_data} => {
                                     tags.input_registers.update(start as usize, &reg_data);
                                 } ,
 
-				// Coils
-				MbCommands::RequestCoils{start, length} => {
-				    debug!("RequestCoils");
-				    ws_request(&tags.coils, &mb_send,start, length,
-					       |start, regs| {
-						   MbCommands::UpdateCoils{start, regs}
-					       });
+                // Coils
+                MbCommands::RequestCoils{start, length} => {
+                    debug!("RequestCoils");
+                    ws_request(&tags.coils, &mb_send,start, length,
+                           |start, regs| {
+                           MbCommands::UpdateCoils{start, regs}
+                           });
                                 } ,
                                 MbCommands::UpdateCoils{start, regs: reg_data} => {
                                     tags.coils.update(start as usize, &reg_data);
                                 } ,
-				
-				// Discrete inputs
-				MbCommands::RequestDiscreteInputs{start, length} => {
-				    debug!("RequestDiscreteInputs");
-				    ws_request(&tags.discrete_inputs, &mb_send,start, length,
-					       |start, regs| {
-						   MbCommands::UpdateDiscreteInputs{start, regs}
-					       });
+
+                // Discrete inputs
+                MbCommands::RequestDiscreteInputs{start, length} => {
+                    debug!("RequestDiscreteInputs");
+                    ws_request(&tags.discrete_inputs, &mb_send,start, length,
+                           |start, regs| {
+                           MbCommands::UpdateDiscreteInputs{start, regs}
+                           });
                                 } ,
                                 MbCommands::UpdateDiscreteInputs{start, regs: reg_data} => {
                                     tags.discrete_inputs.update(start as usize, &reg_data);
@@ -170,7 +172,7 @@ struct CmdArgs {
     mb_address: u8,
     /// Modbus TCP port
     #[arg(long, default_value_t = 502)]
-    mb_port: u16,
+    ip_port: u16,
     /// Serial device
     #[arg(long)]
     serial_device: Option<String>,
@@ -205,13 +207,15 @@ pub async fn main() -> ExitCode {
     let (mb_send, _) = broadcast::channel(4);
     let tags = Tags::new(&tag_list.read().unwrap());
     let ranges = TagRanges::from(&*tag_list.read().unwrap());
+    debug!("Register ranges: {:?}", ranges);
     tokio::spawn(mb_task(tags.clone(), mb_send.clone(), mb_receive));
+    let join: JoinHandle<DynResult<()>>;
     if args.server {
         if let Some(path) = args.serial_device {
             let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
             match SerialStream::open(&builder) {
                 Ok(ser) => {
-                    tokio::spawn(modbus_connection::server_rtu(ser, tags.clone(), ranges));
+                    join = tokio::spawn(modbus_connection::server_rtu(ser, tags.clone(), ranges));
                     info!("Running as RTU server on {}", path);
                 }
                 Err(e) => {
@@ -223,9 +227,11 @@ pub async fn main() -> ExitCode {
                 }
             }
         } else {
-            let addr = Ipv4Addr::new(127, 0, 0, 1);
-            let port = 502;
-            tokio::spawn(modbus_connection::server_tcp(
+            let addr = args
+                .ip_address
+                .unwrap_or_else(|| Ipv4Addr::new(127, 0, 0, 1));
+            let port = args.ip_port;
+            join = tokio::spawn(modbus_connection::server_tcp(
                 SocketAddr::V4(SocketAddrV4::new(addr, port)),
                 tags.clone(),
             ));
@@ -236,7 +242,7 @@ pub async fn main() -> ExitCode {
             let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
             match SerialStream::open(&builder) {
                 Ok(ser) => {
-                    tokio::spawn(modbus_connection::client_rtu(
+                    join = tokio::spawn(modbus_connection::client_rtu(
                         ser,
                         Slave(args.mb_address),
                         tags.clone(),
@@ -252,11 +258,39 @@ pub async fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             }
+        } else {
+            let addr = args
+                .ip_address
+                .unwrap_or_else(|| Ipv4Addr::new(127, 0, 0, 1));
+            let port = args.ip_port;
+            join = tokio::spawn(modbus_connection::client_tcp(
+                SocketAddr::V4(SocketAddrV4::new(addr, port)),
+                Slave(args.mb_address),
+                tags.clone(),
+                ranges,
+            ));
+            info!("Running as TCP client connected to {}:{}", addr, port);
         }
     }
     let conf = web_server::ServerConfig::new(ws_send, mb_send);
     let conf = conf.port(args.http_port);
     let conf = conf.build_page(build_main_page::build_page(tag_list));
-    web_server::run_server(conf).await;
+    tokio::select! {
+        _ = web_server::run_server(conf) => {},
+        res = join => {
+            match res {
+                Ok(res) => {
+                    if let Err(e) = res {
+                        error!("Modbus failed: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                },
+                Err(e) => {
+                    error!("Modbus thread failed: {e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    }
     ExitCode::SUCCESS
 }

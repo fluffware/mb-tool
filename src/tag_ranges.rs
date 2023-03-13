@@ -1,6 +1,7 @@
 use crate::range_array::RangeArray;
 use crate::tag_list::TagList;
 
+#[derive(Debug)]
 pub struct TagRanges {
     pub holding_registers: RangeArray<u16>,
     pub input_registers: RangeArray<u16>,

@@ -129,6 +129,8 @@ pub fn parse_register(node: &Node) -> Result<Register, ParseError> {
     let label: Option<String> = optional_attribute(node, "label")?;
     let initial_value: Option<u16> =
         optional_attribute::<ParsedU16>(node, "initial-value")?.map(u16::from);
+    let scale : f32 = optional_attribute(node, "scale")?.unwrap_or(1.0);
+    let unit: Option<String> = optional_attribute(node, "unit")?;
     let mut fields = Vec::new();
     for child in node.children() {
         if check_element_ns(&child)? {
@@ -146,6 +148,8 @@ pub fn parse_register(node: &Node) -> Result<Register, ParseError> {
         label,
         fields,
         initial_value,
+        scale,
+        unit,
     })
 }
 

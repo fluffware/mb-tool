@@ -6,10 +6,13 @@
             <field bit-low="1" bit-high="8" label="0.1-8" />
         </register>
         <register addr="1" label="Reg 1" />
-        <register addr="2" label="Reg 2" />
+        <register addr="2" label="Reg 2" scale="3.2" unit="m"/>
         <register addr="3" label="Reg 3" />
     </holding-registers>
-    <input-registers />
+    <input-registers>
+      <register addr="2" label="Reg 2" />
+      <register addr="3" label="Reg 3" />
+    </input-registers>
     <discrete-inputs/>
     <coils>
         <bit addr="3" label="Bit 3" initial-value="1"/>

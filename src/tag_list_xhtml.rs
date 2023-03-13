@@ -21,6 +21,13 @@ fn build_field<W: Write>(w: &mut W, field: &RegisterField, register: &Register) 
         r#"<input type="integer" class="mb_value" mb:addr="{}" mb:bit_low="{}" mb:bit_high="{}"/>"#,
         register.address, field.bit_low, field.bit_high
     )?;
+    if field.bit_low == field.bit_high {
+        write!(
+            w,
+            r#"<input type="checkbox" class="mb_value" mb:addr="{}" mb:bit_low="{}" mb:bit_high="{}"/>"#,
+            register.address, field.bit_low, field.bit_high
+        )?;
+    }
     write!(w, "</li>")?;
 
     Ok(())
@@ -37,9 +44,12 @@ fn build_register<W: Write>(w: &mut W, register: &Register) -> Result {
     }
     write!(
         w,
-        r#"<input type="integer" class="mb_value" mb:addr="{}"/>"#,
-        register.address
+        r#"<input type="integer" class="mb_value" mb:addr="{}" mb:scale="{}"/>"#,
+        register.address, register.scale,
     )?;
+    if let Some(unit) = &register.unit {
+        write!(w, r#"<span class="unit">{unit}</span>"#)?;
+    }
     if !register.fields.is_empty() {
         write!(w, r#"<ul class="field_list">"#)?;
         for f in &register.fields {

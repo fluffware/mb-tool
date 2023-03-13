@@ -30,10 +30,19 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
         let tag_list = tag_list
             .read()
             .map_err(|_| "Failed to get read lock for tag list")?;
+
+        writeln!(w, "<h2>Holding registers</h2>")?;
         writeln!(w, "<div id=\"holding_registers\">")?;
         tag_list_xhtml::build_register_list(&mut w, &tag_list.holding_registers)?;
         writeln!(w, "\n</div>")?;
+
+        writeln!(w, "<h2>Input registers</h2>")?;
+        writeln!(w, "<div id=\"input_registers\">")?;
+        tag_list_xhtml::build_register_list(&mut w, &tag_list.input_registers)?;
+        writeln!(w, "\n</div>")?;
+
         writeln!(w, "</body></xhtml>")?;
+        
         let resp = Response::builder()
             .header("Content-Type", "application/xhtml+xml")
             .status(StatusCode::OK);

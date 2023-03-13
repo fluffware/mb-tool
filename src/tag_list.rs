@@ -4,6 +4,8 @@ pub struct Register {
     pub label: Option<String>,
     pub fields: Vec<RegisterField>,
     pub initial_value: Option<u16>,
+    pub scale: f32,
+    pub unit: Option<String>,
 }
 
 #[derive(Debug)]

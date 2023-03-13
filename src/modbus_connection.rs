@@ -14,7 +14,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{self, Duration};
 use tokio_modbus::client::Reader;
 use tokio_modbus::client::Writer;
-use tokio_modbus::client::{rtu, Context};
+use tokio_modbus::client::{rtu,tcp, Context};
 use tokio_modbus::server::rtu::Server as RtuServer;
 use tokio_modbus::server::tcp::Server as TcpServer;
 use tokio_modbus::slave::Slave;
@@ -225,7 +225,7 @@ impl ClientOp {
             }
             ClientOp::ReadInputRegisters(start, length) => {
                 let data = client.read_input_registers(*start, *length).await?;
-                tags.holding_registers.update(*start as usize, &data);
+                tags.input_registers.update(*start as usize, &data);
             }
             ClientOp::ReadCoils(start, length) => {
                 let data = client.read_coils(*start, *length).await?;
@@ -337,6 +337,13 @@ where
     T: AsyncRead + AsyncWrite + Debug + Unpin + Send + 'static,
 {
     let mut ctxt = rtu::connect_slave(ser, slave).await?;
+    client_poll(&mut ctxt, tags, ranges).await?;
+    Ok(())
+}
+
+pub async fn client_tcp(socket: SocketAddr, slave: Slave, tags: Tags, ranges: TagRanges) -> DynResult<()>
+{
+    let mut ctxt = tcp::connect_slave(socket, slave).await?;
     client_poll(&mut ctxt, tags, ranges).await?;
     Ok(())
 }
