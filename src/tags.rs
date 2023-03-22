@@ -16,10 +16,14 @@ impl Tags {
         let discrete_inputs = ObservableArray::new(65536);
         let coils = ObservableArray::new(65536);
         for reg in &init.holding_registers {
-            holding_registers.update(reg.address as usize, &[reg.initial_value.unwrap_or(0)]);
+            for a in reg.address_low..=reg.address_high {
+                holding_registers.update(a as usize, &[reg.initial_value.unwrap_or(0)]);
+            }
         }
         for reg in &init.input_registers {
-            input_registers.update(reg.address as usize, &[reg.initial_value.unwrap_or(0)]);
+            for a in reg.address_low..=reg.address_high {
+                input_registers.update(a as usize, &[reg.initial_value.unwrap_or(0)]);
+            }
         }
         for bit in &init.coils {
             coils.update(bit.address as usize, &[bit.initial_value.unwrap_or(false)]);

@@ -1,5 +1,102 @@
+use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
+use crate::presentation::Presentation;
 use crate::tag_list::{RegisterField, RegisterRange};
 use std::fmt::{Result, Write};
+
+fn presantation_attributes(
+    presentation: &Presentation,
+) -> std::result::Result<String, std::fmt::Error> {
+    let mut output = String::new();
+    write!(output, r#" mb:scale="{}""#, presentation.scale)?;
+    if let Some(unit) = &presentation.unit {
+        write!(output, r#" mb:unit="{}""#, unit)?;
+    }
+    write!(output, r#" mb:base="{}""#, presentation.base)?;
+
+    write!(output, r#" mb:decimals="{}""#, presentation.decimals)?;
+
+    Ok(output)
+}
+
+fn encoding_attributes(encoding: &Encoding) -> std::result::Result<String, std::fmt::Error> {
+    let mut output = String::new();
+
+    match encoding.value {
+        ValueType::Integer { signed } => {
+            write!(
+                output,
+                r#" mb:value-type="integer" mb:sign="{}""#,
+                if signed { "signed" } else { "unsigned" },
+            )?;
+        }
+        ValueType::Float => {
+            write!(output, r#" mb:value-type="string""#)?;
+        }
+        ValueType::String { fill } => {
+            write!(
+                output,
+                r#" mb:value-type="string" mb:fill="&#x{:X};""#,
+                fill
+            )?;
+        }
+    }
+    write!(
+        output,
+        r#" mb:byte-order="{}" "#,
+        match encoding.byte_order {
+            ByteOrder::LittleEndian => "little",
+            ByteOrder::BigEndian => "big",
+        }
+    )?;
+    write!(
+        output,
+        r#" mb:word-order="{}" "#,
+        match encoding.word_order {
+            WordOrder::LittleEndian => "little",
+            WordOrder::BigEndian => "big",
+        }
+    )?;
+    Ok(output)
+}
+
+fn build_input_field<W: Write>(
+    w: &mut W,
+    presentation: &Presentation,
+    encoding: Option<&Encoding>,
+    attrs: &str,
+) -> Result {
+    let input_type = if let Some(encoding) = encoding {
+        match encoding.value {
+            ValueType::Integer { .. } => {
+                if presentation.base == 10 {
+                    "integer"
+                } else {
+                    "text"
+                }
+            }
+            ValueType::Float { .. } => "number",
+            ValueType::String { .. } => "text",
+        }
+    } else {
+        if presentation.base == 10 {
+            "number"
+        } else {
+            "text"
+        }
+    };
+    write!(
+        w,
+        "<input type=\"{input_type}\" class=\"mb_value\" {} {} {}/>\n",
+        attrs,
+        presantation_attributes(presentation)?,
+        if let Some(encoding) = encoding {
+            encoding_attributes(encoding)?
+        } else {
+            "".to_string()
+        }
+    )?;
+    Ok(())
+}
 
 fn build_field<W: Write>(w: &mut W, field: &RegisterField, register: &RegisterRange) -> Result {
     write!(w, r#"<li class="field_item">"#)?;
@@ -16,16 +113,16 @@ fn build_field<W: Write>(w: &mut W, field: &RegisterField, register: &RegisterRa
     if let Some(label) = &field.label {
         write!(w, r#"<span class="field_label">{label}</span>"#)?;
     }
-    write!(
-        w,
-        r#"<input type="integer" class="mb_value" mb:addr="{}" mb:bit_low="{}" mb:bit_high="{}"/>"#,
-        register.address_low, field.bit_low, field.bit_high
-    )?;
+    let input_attrs = format!(
+        r#"mb:addr-low="{}" mb:addr-high="{}" mb:bit-low="{}" mb:bit-high="{}""#,
+        register.address_low, register.address_high, field.bit_low, field.bit_high,
+    );
+    build_input_field(w, &field.presentation, None, &input_attrs)?;
     if field.bit_low == field.bit_high {
         write!(
             w,
-            r#"<input type="checkbox" class="mb_value" mb:addr="{}" mb:bit_low="{}" mb:bit_high="{}"/>"#,
-            register.address_low, field.bit_low, field.bit_high
+            r#"<input type="checkbox" class="mb_value" mb:addr-low="{}" mb:addr-high="{}" mb:bit-low="{}" mb:bit-high="{}"/>"#,
+            register.address_low, register.address_high, field.bit_low, field.bit_high
         )?;
     }
     write!(w, "</li>")?;
@@ -50,11 +147,18 @@ fn build_register<W: Write>(w: &mut W, register: &RegisterRange) -> Result {
     if let Some(label) = &register.label {
         write!(w, r#"<span class="register_label">{label}</span>"#)?;
     }
-    write!(
+
+    let input_attrs = format!(
+        r#"mb:addr-low="{}"  mb:addr-high="{}""#,
+        register.address_low, register.address_high,
+    );
+    build_input_field(
         w,
-        r#"<input type="integer" class="mb_value" mb:addr-low="{}"  mb:addr-hight="{}" mb:scale="{}"/>"#,
-        register.address_low, register.address_high, register.presentation.scale,
+        &register.presentation,
+        Some(&register.encoding),
+        &input_attrs,
     )?;
+
     if let Some(unit) = &register.presentation.unit {
         write!(w, r#"<span class="unit">{unit}</span>"#)?;
     }

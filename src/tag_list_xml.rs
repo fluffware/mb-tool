@@ -1,5 +1,5 @@
-use crate::encoding::{ByteOrder, Encoding, WordOrder};
-use crate::presentation::{DisplayType, Presentation};
+use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
+use crate::presentation::Presentation;
 use crate::tag_list::{Bit, RegisterField, RegisterRange, TagList};
 use roxmltree::{Node, TextPos};
 use std::error::Error;
@@ -17,7 +17,7 @@ pub struct ParseError {
 impl ParseError {
     pub fn new(node: &Node, kind: ParseErrorKind) -> ParseError {
         ParseError {
-            pos: node.document().text_pos_at(node.position()),
+            pos: node.document().text_pos_at(node.range().start),
             kind,
         }
     }
@@ -45,7 +45,7 @@ pub enum ParseErrorKind {
     InvalidByteOrder,
     InvalidWordOrder,
     InvalidSign,
-    InvalidDisplayType,
+    InvalidValueType,
 }
 
 impl std::fmt::Display for ParseErrorKind {
@@ -64,9 +64,9 @@ impl std::fmt::Display for ParseErrorKind {
             InvalidByteOrder => write!(f, "Invalid byte order"),
             InvalidWordOrder => write!(f, "Invalid word order"),
             InvalidSign => write!(f, "Attribute 'sign' must be either 'signed' or 'unsigned'"),
-            InvalidDisplayType => write!(
+            InvalidValueType => write!(
                 f,
-                "Attribute 'display' must be one of 'integer', 'float', or 'string'"
+                "Attribute 'value-type' must be one of 'integer', 'float', or 'string'"
             ),
         }
     }
@@ -121,31 +121,13 @@ where
 }
 
 pub fn parse_presentation(node: &Node) -> Result<Presentation, ParseError> {
-    let display = match optional_attribute::<String>(node, "display")?
-        .map(|s| s.as_str())
-        .unwrap_or_else(|| "integer")
-    {
-        "integer" => {
-            let signed = match optional_attribute::<String>(node, "sign")?.map(|s| s.as_str()) {
-                Some("signed") => true,
-                Some("unsigned") => false,
-                Some(_) => return Err(ParseError::new(node, ParseErrorKind::InvalidSign)),
-                None => false,
-            };
-            let base = optional_attribute::<u8>(node, "base")?.unwrap_or(10);
-            DisplayType::Integer { signed, base }
-        }
-        "float" => {
-            let decimals = optional_attribute::<u8>(node, "decimals")?.unwrap_or(2);
-            DisplayType::Float { decimals }
-        }
-        "string" => DisplayType::String { fill: '\0' },
-        _ => return Err(ParseError::new(node, ParseErrorKind::InvalidDisplayType)),
-    };
     let scale: f32 = optional_attribute(node, "scale")?.unwrap_or(1.0);
     let unit: Option<String> = optional_attribute(node, "unit")?;
+    let base = optional_attribute::<u8>(node, "base")?.unwrap_or(10);
+    let decimals = optional_attribute::<u8>(node, "decimals")?.unwrap_or(2);
     Ok(Presentation {
-        display,
+        decimals,
+        base,
         scale,
         unit,
     })
@@ -176,7 +158,34 @@ pub fn parse_encoding(node: &Node) -> Result<Encoding, ParseError> {
         }
         None => WordOrder::BigEndian,
     };
+    let value = match optional_attribute::<String>(node, "value-type")?
+        .as_ref()
+        .map(|s| s.as_str())
+        .unwrap_or_else(|| "integer")
+    {
+        "integer" => {
+            let signed = match optional_attribute::<String>(node, "sign")?
+                .as_ref()
+                .map(|s| s.as_str())
+            {
+                Some("signed") => true,
+                Some("unsigned") => false,
+                Some(_) => return Err(ParseError::new(node, ParseErrorKind::InvalidSign)),
+                None => false,
+            };
+
+            ValueType::Integer { signed }
+        }
+        "float" => ValueType::Float ,
+        "string" => { 
+            let fill:u8 = optional_attribute(node, "fill")?.unwrap_or(0);
+            ValueType::String{fill}
+        }
+        _ => return Err(ParseError::new(node, ParseErrorKind::InvalidValueType)),
+    };
+
     Ok(Encoding {
+        value,
         byte_order,
         word_order,
     })

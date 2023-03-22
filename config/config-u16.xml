@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tag-list xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v1">
+    <holding-registers>
+        <register addr="0" label="Reg 0" />
+        <register addr="1" label="Reg 1" />
+        <register addr="2" label="Reg 2" />
+        <register addr="3" label="Reg 3" />
+        <register addr="4" label="Reg 4" />
+        <register addr="5" label="Reg 5" />
+        <register addr="6" label="Reg 6" />
+        <register addr="7" label="Reg 7" />
+        <register addr="8" label="Reg 8" />
+        <register addr="9" label="Reg 9" />
+        <register addr="10" label="Reg 10" />
+        <register addr="11" label="Reg 11" />
+        <register addr="12" label="Reg 12" />
+        <register addr="13" label="Reg 13" />
+        <register addr="14" label="Reg 14" />
+        <register addr="15" label="Reg 15" />
+        <register addr="16" label="Reg 16" />
+        <register addr="17" label="Reg 17" />
+        <register addr="18" label="Reg 18" />
+        <register addr="19" label="Reg 19" />
+      </holding-registers>
+    <input-registers>
+        <register addr="0" label="Reg 0" />
+        <register addr="1" label="Reg 1" />
+        <register addr="2" label="Reg 2" />
+        <register addr="3" label="Reg 3" />
+        <register addr="4" label="Reg 4" />
+        <register addr="5" label="Reg 5" />
+        <register addr="6" label="Reg 6" />
+        <register addr="7" label="Reg 7" />
+        <register addr="8" label="Reg 8" />
+        <register addr="9" label="Reg 9" />
+        <register addr="10" label="Reg 10" />
+        <register addr="11" label="Reg 11" />
+        <register addr="12" label="Reg 12" />
+        <register addr="13" label="Reg 13" />
+        <register addr="14" label="Reg 14" />
+        <register addr="15" label="Reg 15" />
+        <register addr="16" label="Reg 16" />
+        <register addr="17" label="Reg 17" />
+        <register addr="18" label="Reg 18" />
+        <register addr="19" label="Reg 19" />
+    </input-registers>
+    <discrete-inputs/>
+    <coils/>
+       
+</tag-list>

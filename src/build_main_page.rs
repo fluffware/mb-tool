@@ -22,6 +22,11 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
         )?;
         write!(
             w,
+            r#"<script src="/range_dict.js"/>
+            "#
+        )?;
+        write!(
+            w,
             r#"<script src="/modbus.js"/>
             "#
         )?;
