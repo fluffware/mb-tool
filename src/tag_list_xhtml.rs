@@ -35,7 +35,7 @@ fn encoding_attributes(encoding: &Encoding) -> std::result::Result<String, std::
         ValueType::String { fill } => {
             write!(
                 output,
-                r#" mb:value-type="string" mb:fill="&#x{:X};""#,
+                r#" mb:value-type="string" mb:fill="{}""#,
                 fill
             )?;
         }

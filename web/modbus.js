@@ -18,51 +18,75 @@ class AreaUpdater {
                 let low = inp.getAttributeNS(MB_NS, "bit-low");
                 let high = inp.getAttributeNS(MB_NS, "bit-high");
                 let disp = inp.getAttributeNS(MB_NS, "value-type");
-                if (disp == "integer") {
+                switch (disp) {
+                    case "integer":
+                        {
 
-                    let value;
-                    if (inp.type == "checkbox") {
-                        value = BigInt(e.target.checked ? 1 : 0);
-                    } else {
-                        try {
-                            value = BigInt(e.target.value);
-                        } catch {
-                            value = Number(e.target.value);
-                        }
-                    }
-                    if (low != null && high != null && addr_low == addr_high) {
-                        let old_value = mb_values[addr_low] || 0;
-                        let mask = ((1 << (high - low + 1)) - 1) << low;
-                        value = BigInt((old_value & ~mask) | (Number(value) << low) & mask);
-                    }
-                    let scale = inp.getAttributeNS(MB_NS, "scale");
-                    if (scale != null && scale != 1) {
-                        value = Math.round(Number(value) * scale);
+                            let value;
+                            if (inp.type == "checkbox") {
+                                value = BigInt(e.target.checked ? 1 : 0);
+                            } else {
+                                try {
+                                    value = BigInt(e.target.value);
+                                } catch {
+                                    value = Number(e.target.value);
+                                }
+                            }
+                            if (low != null && high != null && addr_low == addr_high) {
+                                let old_value = mb_values[addr_low] || 0;
+                                let mask = ((1 << (high - low + 1)) - 1) << low;
+                                value = BigInt((old_value & ~mask) | (Number(value) << low) & mask);
+                            }
+                            let scale = inp.getAttributeNS(MB_NS, "scale");
+                            if (scale != null && scale != 1) {
+                                value = Math.round(Number(value) * scale);
 
-                    }
-                    if (typeof value == "number") value = Math.round(value);
-                    let byte_swap = inp.getAttributeNS(MB_NS, "byte-order") == "little";
-                    let word_order = inp.getAttributeNS(MB_NS, "word-order");
-                    value = BigInt(value);
-                    console.log("Changed value: " + value);
-                    if (word_order == "little") {
-                        for (let a = addr_low; a <= addr_high; a++) {
-                            mb_values[a] = Number(value & BigInt(0xffff));
-                            value >>= BigInt(16);
-                        }
-                    } else {
-                        for (let a = addr_high; a >= addr_low; a--) {
-                            mb_values[a] = Number(value & BigInt(0xffff));
-                            value >>= BigInt(16);
-                        }
-                    }
+                            }
+                            if (typeof value == "number") value = Math.round(value);
+                            let byte_swap = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+                            let word_order = inp.getAttributeNS(MB_NS, "word-order");
+                            value = BigInt(value);
+                            console.log("Changed value: " + value);
+                            if (word_order == "little") {
+                                for (let a = addr_low; a <= addr_high; a++) {
+                                    mb_values[a] = Number(value & BigInt(0xffff));
+                                    value >>= BigInt(16);
+                                }
+                            } else {
+                                for (let a = addr_high; a >= addr_low; a--) {
+                                    mb_values[a] = Number(value & BigInt(0xffff));
+                                    value >>= BigInt(16);
+                                }
+                            }
 
-                    updater.send({
-                        start: addr_low,
-                        regs: mb_values.slice(addr_low, addr_high + 1)
-                    });
-                    updater.update_range(addr_low, addr_high, value);
+
+                        }
+                        break;
+                    case "string":
+                        {
+                            let fill = inp.getAttributeNS(MB_NS, "fill")
+                            let low_first = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+                            let encoder = new TextEncoder("utf-8");
+                            let byte_length = (addr_high - addr_low) * 2 + 2;
+                            let bytes = new Uint8Array(byte_length);
+                            bytes.fill(fill);
+                            bytes.set(encoder.encode(inp.value).slice(0, byte_length));
+                            for (let a = addr_low; a <= addr_high; a++) {
+                                let c = (a - addr_low) * 2;
+                                if (low_first) {
+                                    mb_values[a] = bytes[c] | (bytes[c + 1] << 8);
+                                } else {
+                                    mb_values[a] = bytes[c + 1] | (bytes[c] << 8);
+                                }
+                            }
+                        }
+                        break;
                 }
+                updater.send({
+                    start: addr_low,
+                    regs: mb_values.slice(addr_low, addr_high + 1)
+                });
+                updater.update_range(addr_low, addr_high);
             });
             v.addEventListener("blur", function(e) {
                 updater.update_range(addr_low, addr_high);
@@ -141,6 +165,42 @@ class AreaUpdater {
                     case "float":
                         breaak;
                     case "string":
+                        let bytes = [];
+                        let fill = inp.getAttributeNS(MB_NS, "fill")
+                        let low_first = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+                        let end = null;
+                        for (let a = addr_low; a <= addr_high; a++) {
+
+                            let w = this.mb_values[a];
+                            let first;
+                            let second;
+                            if (low_first) {
+                                first = w & 0xff;
+                                second(w >> 8) & 0xff;
+                            } else {
+                                first = (w >> 8) & 0xff;
+                                second = w & 0xff;
+                            }
+                            if (end == null) {
+                                if (first == fill) {
+                                    end = (a - addr_low) * 2;
+                                    break;
+                                } else {
+                                    if (second == fill) {
+                                        end = (a - addr_high) * 2 + 1;
+                                        break;
+                                    }
+                                }
+                            }
+                            bytes.push(first);
+                            bytes.push(second);
+                        }
+                        if (end == null) {
+                            end = (addr_high - addr_low) * 2 + 2;
+                        }
+                        let decoder = new TextDecoder("utf-8");
+                        let text = decoder.decode(new Uint8Array(bytes.slice(0, end)));
+                        inp.value = text;
                         break;
                     default:
                         console.log("Unknown value type " + value_type);
