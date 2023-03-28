@@ -150,14 +150,26 @@ class AreaUpdater {
                                 value = (value >> BigInt(low)) & BigInt((1 << (high - low + 1)) - 1);
                             }
                             let scale = inp.getAttributeNS(MB_NS, "scale");
-                            if (scale != null) {
+                            if (scale != null && scale != 1) {
                                 value = Number(value) / scale;
                             }
                             if (inp.localName == "input") {
                                 if (inp.type == "checkbox") {
                                     inp.checked = Number(value) > 0;
                                 } else {
-                                    inp.value = value;
+                                    if (typeof(value) == "bigint") {
+                                        let base = inp.getAttributeNS(MB_NS, "base") || 10;
+                                        if (base == 16) {
+                                            inp.value = "0x" + value.toString(16);
+                                        } else if (base == 2) {
+                                            inp.value = "0b" + value.toString(2);
+                                        } else {
+                                            inp.value = value;
+                                        }
+
+                                    } else {
+                                        inp.value = value;
+                                    }
                                 }
                             }
                         }
@@ -184,11 +196,9 @@ class AreaUpdater {
                             if (end == null) {
                                 if (first == fill) {
                                     end = (a - addr_low) * 2;
-                                    break;
                                 } else {
                                     if (second == fill) {
-                                        end = (a - addr_high) * 2 + 1;
-                                        break;
+                                        end = (a - addr_low) * 2 + 1;
                                     }
                                 }
                             }

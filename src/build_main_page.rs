@@ -47,7 +47,7 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
         writeln!(w, "\n</div>")?;
 
         writeln!(w, "</body></xhtml>")?;
-        
+
         let resp = Response::builder()
             .header("Content-Type", "application/xhtml+xml")
             .status(StatusCode::OK);

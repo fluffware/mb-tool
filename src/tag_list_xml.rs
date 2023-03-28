@@ -176,10 +176,10 @@ pub fn parse_encoding(node: &Node) -> Result<Encoding, ParseError> {
 
             ValueType::Integer { signed }
         }
-        "float" => ValueType::Float ,
-        "string" => { 
-            let fill:u8 = optional_attribute(node, "fill")?.unwrap_or(0);
-            ValueType::String{fill}
+        "float" => ValueType::Float,
+        "string" => {
+            let fill: u8 = optional_attribute(node, "fill")?.unwrap_or(0);
+            ValueType::String { fill }
         }
         _ => return Err(ParseError::new(node, ParseErrorKind::InvalidValueType)),
     };

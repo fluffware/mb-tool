@@ -1,4 +1,3 @@
-
 #[derive(Debug)]
 pub enum ByteOrder {
     BigEndian,
@@ -13,10 +12,9 @@ pub enum WordOrder {
 
 #[derive(Debug)]
 pub enum ValueType {
-    Integer{signed: bool},
+    Integer { signed: bool },
     Float,
-    String{fill: u8},
-
+    String { fill: u8 },
 }
 #[derive(Debug)]
 pub struct Encoding {

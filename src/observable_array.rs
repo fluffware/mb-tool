@@ -156,5 +156,4 @@ where
         let base = self.base.read().unwrap();
         base.array.is_empty()
     }
-
 }

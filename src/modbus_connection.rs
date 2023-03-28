@@ -14,7 +14,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{self, Duration};
 use tokio_modbus::client::Reader;
 use tokio_modbus::client::Writer;
-use tokio_modbus::client::{rtu,tcp, Context};
+use tokio_modbus::client::{rtu, tcp, Context};
 use tokio_modbus::server::rtu::Server as RtuServer;
 use tokio_modbus::server::tcp::Server as TcpServer;
 use tokio_modbus::slave::Slave;
@@ -300,33 +300,33 @@ async fn client_poll(client: &mut Context, mut tags: Tags, ranges: TagRanges) ->
         }
         tokio::select! {
             _res = time::sleep(Duration::from_millis(921)) => (),
-	    changes = tags.holding_registers.updated() => {
-		for range in &changes {
+        changes = tags.holding_registers.updated() => {
+        for range in &changes {
                     let start = range.start;
                     let length = range.end - range.start;
                     let data = tags
-			.holding_registers
-			.get_array(|r| Vec::from(&r[start..start + length]));
+            .holding_registers
+            .get_array(|r| Vec::from(&r[start..start + length]));
                         if length == 1 {
-			    client.write_single_register(start as u16, data[0]).await?;
+                client.write_single_register(start as u16, data[0]).await?;
                         } else {
-			    client.write_multiple_registers(start as u16, &data).await?;
+                client.write_multiple_registers(start as u16, &data).await?;
                         }
-		}
+        }
             }
             changes = tags.coils.updated() => {
-		for range in &changes {
+        for range in &changes {
                     let start = range.start;
                     let length = range.end - range.start;
                     let data = tags
-			.coils
-			.get_array(|r| Vec::from(&r[start..start + length]));
+            .coils
+            .get_array(|r| Vec::from(&r[start..start + length]));
                         if length == 1 {
-			    client.write_single_coil(start as u16, data[0]).await?;
+                client.write_single_coil(start as u16, data[0]).await?;
                         } else {
-			    client.write_multiple_coils(start as u16, &data).await?;
+                client.write_multiple_coils(start as u16, &data).await?;
                         }
-		}
+        }
             }
         }
     }
@@ -341,8 +341,12 @@ where
     Ok(())
 }
 
-pub async fn client_tcp(socket: SocketAddr, slave: Slave, tags: Tags, ranges: TagRanges) -> DynResult<()>
-{
+pub async fn client_tcp(
+    socket: SocketAddr,
+    slave: Slave,
+    tags: Tags,
+    ranges: TagRanges,
+) -> DynResult<()> {
     let mut ctxt = tcp::connect_slave(socket, slave).await?;
     client_poll(&mut ctxt, tags, ranges).await?;
     Ok(())

@@ -20,31 +20,33 @@ impl TagRanges {
     }
 }
 
-impl Default for TagRanges
-{
-    fn default() -> Self
-    {
-	Self::new()
+impl Default for TagRanges {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl From<&TagList> for TagRanges
-{
-    fn from(tag_list: &TagList) -> Self
-    {
-	let mut ranges = Self::new();
-	for reg in &tag_list.input_registers {
-	    ranges.input_registers.union(&(reg.address_low..reg.address_high + 1));
-	}
-	for reg in &tag_list.holding_registers {
-	    ranges.holding_registers.union(&(reg.address_low..reg.address_high + 1));
-	}
-	for bit in &tag_list.discrete_inputs {
-	    ranges.discrete_inputs.union(&(bit.address..bit.address + 1));
-	}
-	for bit in &tag_list.coils {
-	    ranges.coils.union(&(bit.address..bit.address + 1));
-	}
-	ranges
+impl From<&TagList> for TagRanges {
+    fn from(tag_list: &TagList) -> Self {
+        let mut ranges = Self::new();
+        for reg in &tag_list.input_registers {
+            ranges
+                .input_registers
+                .union(&(reg.address_low..reg.address_high + 1));
+        }
+        for reg in &tag_list.holding_registers {
+            ranges
+                .holding_registers
+                .union(&(reg.address_low..reg.address_high + 1));
+        }
+        for bit in &tag_list.discrete_inputs {
+            ranges
+                .discrete_inputs
+                .union(&(bit.address..bit.address + 1));
+        }
+        for bit in &tag_list.coils {
+            ranges.coils.union(&(bit.address..bit.address + 1));
+        }
+        ranges
     }
 }
