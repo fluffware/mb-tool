@@ -26,6 +26,8 @@ serde = "1.0.152"
 serde_derive = "1.0.152"
 tokio-modbus = {version="0.5.4", default-features = false, features=["server", "tcp", "rtu", "tcp-server-unstable"]}
 tokio-serial = "5.4.4"
+num-traits = "*"
+num-bigint = "0.4"
 
 [patch.crates-io]
 websocket-lite = {git = "https://github.com/1tgr/rust-websocket-lite.git"}

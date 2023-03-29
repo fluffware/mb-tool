@@ -1,5 +1,7 @@
 use crate::observable_array::ObservableArray;
+use crate::register_value;
 use crate::tag_list::TagList;
+use log::error;
 
 #[derive(Clone)]
 pub struct Tags {
@@ -15,22 +17,37 @@ impl Tags {
         let input_registers = ObservableArray::new(65536);
         let discrete_inputs = ObservableArray::new(65536);
         let coils = ObservableArray::new(65536);
+
         for reg in &init.holding_registers {
-            for a in reg.address_low..=reg.address_high {
-                holding_registers.update(a as usize, &[reg.initial_value.unwrap_or(0)]);
+            if let Some(value_str) = reg.initial_value.as_ref() {
+                match register_value::parse(reg, &value_str) {
+                    Ok(v) => holding_registers.update(reg.address_low as usize, &v),
+                    Err(e) => error!(
+                        "Failed to parse initial value for holding register at address {}: {}",
+                        reg.address_low, e
+                    ),
+                }
             }
         }
         for reg in &init.input_registers {
-            for a in reg.address_low..=reg.address_high {
-                input_registers.update(a as usize, &[reg.initial_value.unwrap_or(0)]);
+            if let Some(value_str) = reg.initial_value.as_ref() {
+                match register_value::parse(reg, &value_str) {
+                    Ok(v) => input_registers.update(reg.address_low as usize, &v),
+                    Err(e) => error!(
+                        "Failed to parse initial value for input register at address {}: {}",
+                        reg.address_low, e
+                    ),
+                }
             }
         }
+
         for bit in &init.coils {
             coils.update(bit.address as usize, &[bit.initial_value.unwrap_or(false)]);
         }
         for bit in &init.discrete_inputs {
             discrete_inputs.update(bit.address as usize, &[bit.initial_value.unwrap_or(false)]);
         }
+
         Tags {
             holding_registers,
             input_registers,

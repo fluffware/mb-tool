@@ -5,15 +5,15 @@
             <field bit="0" label="0.0" />
             <field bit-low="1" bit-high="8" label="0.1-8" />
         </register>
-        <register addr="1" label="Reg 1" />
-        <register addr="2" label="Reg 2" scale="10" unit="m"/>
+        <register addr="1" label="Reg 1" initial-value="7287" />
+        <register addr="2" label="Reg 2" scale="10" unit="m" initial-value="78.34"/>
         <register-range addr-low="3" addr-high="4" label="Reg 4" initial-value="8982"/>
-        <register-range addr-low="5" addr-high="8" label="Reg 5" word-order="little" sign="signed" initial-value="8982"/>
-        <register-range addr-low="10" addr-high="19" value-type="string" fill="0"></register-range>
+        <register-range addr-low="5" addr-high="8" label="Reg 5" word-order="little" sign="signed" base="16" initial-value="-0x89829a88f"/>
+        <register-range addr-low="10" addr-high="19" value-type="string" fill="0" initial-value="Hello World!"></register-range>
     </holding-registers>
     <input-registers>
-      <register addr="2" label="Reg 2" />
-      <register addr="3" label="Reg 3" />
+      <register addr="2" label="Reg 2" initial-value="1"/>
+      <register addr="3" label="Reg 3" sign="signed" initial-value="-34"/>
     </input-registers>
     <discrete-inputs/>
     <coils>

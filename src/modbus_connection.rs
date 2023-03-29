@@ -194,17 +194,17 @@ pub async fn server_rtu(ser: SerialStream, tags: Tags, _ranges: TagRanges) -> Dy
 
 enum ClientOp {
     ReadHoldingRegisters(u16, u16),
-    WriteHoldingRegisters(u16, u16),
+    //WriteHoldingRegisters(u16, u16),
     ReadInputRegisters(u16, u16),
     ReadCoils(u16, u16),
-    WriteCoils(u16, u16),
+    //WriteCoils(u16, u16),
     ReadDiscreteInputs(u16, u16),
 }
 
 const READ_BITS_MAX_LEN: u16 = 2000;
 const READ_REGISTERS_MAX_LEN: u16 = 125;
-const WRITE_REGISTERS_MAX_LEN: u16 = 123;
-const WRITE_BITS_MAX_LEN: u16 = 1968;
+//const WRITE_REGISTERS_MAX_LEN: u16 = 123;
+//const WRITE_BITS_MAX_LEN: u16 = 1968;
 
 impl ClientOp {
     pub async fn execute(&self, client: &mut Context, tags: &mut Tags) -> DynResult<()> {
@@ -213,6 +213,7 @@ impl ClientOp {
                 let data = client.read_holding_registers(*start, *length).await?;
                 tags.holding_registers.update(*start as usize, &data);
             }
+            /*
             ClientOp::WriteHoldingRegisters(start, length) => {
                 let data = tags
                     .holding_registers
@@ -222,7 +223,7 @@ impl ClientOp {
                 } else {
                     client.write_multiple_registers(*start, &data).await?;
                 }
-            }
+            }*/
             ClientOp::ReadInputRegisters(start, length) => {
                 let data = client.read_input_registers(*start, *length).await?;
                 tags.input_registers.update(*start as usize, &data);
@@ -231,6 +232,7 @@ impl ClientOp {
                 let data = client.read_coils(*start, *length).await?;
                 tags.coils.update(*start as usize, &data);
             }
+            /* 
             ClientOp::WriteCoils(start, length) => {
                 let data = tags
                     .coils
@@ -240,7 +242,7 @@ impl ClientOp {
                 } else {
                     client.write_multiple_coils(*start, &data).await?;
                 }
-            }
+            }*/
             ClientOp::ReadDiscreteInputs(start, length) => {
                 let data = client.read_discrete_inputs(*start, *length).await?;
                 tags.discrete_inputs.update(*start as usize, &data);

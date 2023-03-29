@@ -221,8 +221,7 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
         address_high = required_attribute::<ParsedU16>(node, "addr-high")?.into();
     }
     let label: Option<String> = optional_attribute(node, "label")?;
-    let initial_value: Option<u16> =
-        optional_attribute::<ParsedU16>(node, "initial-value")?.map(u16::from);
+    let initial_value: Option<String> = optional_attribute(node, "initial-value")?;
     let presentation = parse_presentation(node)?;
     let encoding = parse_encoding(node)?;
 
@@ -398,14 +397,14 @@ fn parse_register_test() -> Result<(), ParseError> {
     .unwrap();
 
     let regs = parse_registers(&doc.root().first_child().unwrap())?;
-    assert_eq!(regs[0].address, 0);
+    assert_eq!(regs[0].address_low, 0);
     assert_eq!(regs[0].label, Some("Reg 0".to_string()));
     assert_eq!(regs[0].fields[0].bit_low, 0);
     assert_eq!(regs[0].fields[0].bit_high, 0);
     assert_eq!(regs[0].fields[1].bit_low, 1);
     assert_eq!(regs[0].fields[1].bit_high, 8);
 
-    assert_eq!(regs[1].address, 1);
+    assert_eq!(regs[1].address_low, 1);
     assert_eq!(regs[1].label, Some("Reg 1".to_string()));
     assert!(regs[1].fields.is_empty());
     Ok(())

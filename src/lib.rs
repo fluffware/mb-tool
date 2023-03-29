@@ -11,3 +11,4 @@ pub mod tag_list_xml;
 pub mod tag_ranges;
 pub mod tags;
 pub mod web_server;
+pub mod register_value;

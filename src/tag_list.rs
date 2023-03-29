@@ -7,7 +7,7 @@ pub struct RegisterRange {
     pub address_high: u16,
     pub label: Option<String>,
     pub fields: Vec<RegisterField>,
-    pub initial_value: Option<u16>,
+    pub initial_value: Option<String>,
     pub presentation: Presentation,
     pub encoding: Encoding,
 }

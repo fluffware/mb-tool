@@ -1,3 +1,10 @@
+function swap_bytes(value, swap) {
+    if (swap) {
+        return ((value & 0x00ff) << 8) | ((value & 0xff00) >> 8);
+    } else {
+        return value;
+    }
+}
 class AreaUpdater {
     value_map = new RangeDict();
     mb_values = [];
@@ -17,7 +24,7 @@ class AreaUpdater {
             v.addEventListener("change", function(e) {
                 let low = inp.getAttributeNS(MB_NS, "bit-low");
                 let high = inp.getAttributeNS(MB_NS, "bit-high");
-                let disp = inp.getAttributeNS(MB_NS, "value-type");
+                let disp = inp.getAttributeNS(MB_NS, "value-type") || "integer";
                 switch (disp) {
                     case "integer":
                         {
@@ -27,7 +34,16 @@ class AreaUpdater {
                                 value = BigInt(e.target.checked ? 1 : 0);
                             } else {
                                 try {
-                                    value = BigInt(e.target.value);
+                                    let s = e.target.value;
+                                    let neg = false;
+                                    if (s.startsWith("-")) {
+                                        neg = true;
+                                        s = s.slice(1);
+                                    }
+                                    value = BigInt(s);
+                                    if (neg) {
+                                        value = -value;
+                                    }
                                 } catch {
                                     value = Number(e.target.value);
                                 }
@@ -49,12 +65,12 @@ class AreaUpdater {
                             console.log("Changed value: " + value);
                             if (word_order == "little") {
                                 for (let a = addr_low; a <= addr_high; a++) {
-                                    mb_values[a] = Number(value & BigInt(0xffff));
+                                    mb_values[a] = swap_bytes(Number(value & BigInt(0xffff)), byte_swap);
                                     value >>= BigInt(16);
                                 }
                             } else {
                                 for (let a = addr_high; a >= addr_low; a--) {
-                                    mb_values[a] = Number(value & BigInt(0xffff));
+                                    mb_values[a] = swap_bytes(Number(value & BigInt(0xffff)), byte_swap);
                                     value >>= BigInt(16);
                                 }
                             }
@@ -159,10 +175,15 @@ class AreaUpdater {
                                 } else {
                                     if (typeof(value) == "bigint") {
                                         let base = inp.getAttributeNS(MB_NS, "base") || 10;
+                                        let sign = "";
+                                        if (value < 0n) {
+                                            sign = "-";
+                                            value = -value;
+                                        }
                                         if (base == 16) {
-                                            inp.value = "0x" + value.toString(16);
+                                            inp.value = sign + "0x" + value.toString(16);
                                         } else if (base == 2) {
-                                            inp.value = "0b" + value.toString(2);
+                                            inp.value = sign + "0b" + value.toString(2);
                                         } else {
                                             inp.value = value;
                                         }

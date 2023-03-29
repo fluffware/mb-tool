@@ -4,10 +4,42 @@ pub enum ByteOrder {
     LittleEndian,
 }
 
+impl ByteOrder {
+    pub fn is_big_endian(&self) -> bool {
+        match self {
+            Self::BigEndian => true,
+            _ => false
+        }
+    }
+
+    pub fn is_little_endian(&self) -> bool {
+        match self {
+            Self::LittleEndian => true,
+            _ => false
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum WordOrder {
     BigEndian,
     LittleEndian,
+}
+
+impl WordOrder {
+    pub fn is_big_endian(&self) -> bool {
+        match self {
+            Self::BigEndian => true,
+            _ => false
+        }
+    }
+
+    pub fn is_little_endian(&self) -> bool {
+        match self {
+            Self::LittleEndian => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Debug)]
