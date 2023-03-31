@@ -30,7 +30,7 @@ fn encoding_attributes(encoding: &Encoding) -> std::result::Result<String, std::
             )?;
         }
         ValueType::Float => {
-            write!(output, r#" mb:value-type="string""#)?;
+            write!(output, r#" mb:value-type="float""#)?;
         }
         ValueType::String { fill } => {
             write!(output, r#" mb:value-type="string" mb:fill="{}""#, fill)?;

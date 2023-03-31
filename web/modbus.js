@@ -5,11 +5,45 @@ function swap_bytes(value, swap) {
         return value;
     }
 }
+
+function u16_to_u32_swapped(words, swap_bytes, low_word_first) {
+    let u32;
+    if (low_word_first) {
+        u32 = words[0] | words[1] << 16;
+    } else {
+        u32 = words[1] | words[0] << 16;
+    }
+    if (swap_bytes) {
+        u32 = ((u32 & 0x00ff00ff) << 8) | ((u32 & 0xff00ff00) >> 8);
+    }
+    return u32;
+}
+
+function u32_to_u16_swapped(u32, swap_bytes, low_word_first) {
+
+    if (swap_bytes) {
+        u32 = ((u32 & 0x00ff00ff) << 8) | ((u32 & 0xff00ff00) >> 8);
+    }
+    let words;
+    if (low_word_first) {
+        words = [u32 & 0xffff, (u32 >> 16) & 0xffff];
+    } else {
+        words = [(u32 >> 16) & 0xffff, u32 & 0xffff];
+    }
+
+    return words;
+}
 class AreaUpdater {
     value_map = new RangeDict();
     mb_values = [];
+    focusedElement = null;
+
     constructor(parent, send) {
         this.send = send;
+        {
+            let a = new Uint32Array([0x12345678]);
+            this.nativeBigEndian = new Uint8Array(a.buffer, a.byteOffset, a.byteLength)[0] == 0x12;
+        }
 
         var values = parent.getElementsByClassName("mb_value");
         for (let v of values) {
@@ -21,7 +55,7 @@ class AreaUpdater {
             let inp = v;
             let mb_values = this.mb_values;
             let updater = this;
-            v.addEventListener("change", function(e) {
+            v.addEventListener("change", function (e) {
                 let low = inp.getAttributeNS(MB_NS, "bit-low");
                 let high = inp.getAttributeNS(MB_NS, "bit-high");
                 let disp = inp.getAttributeNS(MB_NS, "value-type") || "integer";
@@ -78,6 +112,30 @@ class AreaUpdater {
 
                         }
                         break;
+                    case "float":
+                        {
+                            let byte_le = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+                            let word_le = inp.getAttributeNS(MB_NS, "word-order") == "little";
+                            let word_count = addr_high - addr_low + 1;
+                            let value = Number(e.target.value);
+                            if (word_count == 2) {
+                                let f = new Float32Array([value]);
+                                let b = new Uint32Array(f.buffer, f.byteOffset, 1);
+                                mb_values.splice(addr_low, 2, ...u32_to_u16_swapped(b[0], byte_le, word_le));
+                            } else if (word_count == 4) {
+                                let f = new Float64Array([value]);
+                                let b = new Uint32Array(f.buffer, f.byteOffset, 2);
+                                if (this.nativeBigEndian == word_le) {
+                                    let tmp = b[0];
+                                    b[0] = b[1];
+                                    b[1] = tmp;
+                                }
+                                mb_values.splice(addr_low, 4,
+                                    ... u32_to_u16_swapped(b[0], byte_le, word_le),
+                                    ... u32_to_u16_swapped(b[1], byte_le, word_le));
+                            }
+                        }
+                        break;
                     case "string":
                         {
                             let fill = inp.getAttributeNS(MB_NS, "fill")
@@ -104,7 +162,11 @@ class AreaUpdater {
                 });
                 updater.update_range(addr_low, addr_high);
             });
-            v.addEventListener("blur", function(e) {
+            v.addEventListener("focus", function (e) {
+                updater.focusedElement = inp;
+            });
+            v.addEventListener("blur", function (e) {
+                updater.focusedElement = null;
                 updater.update_range(addr_low, addr_high);
             });
 
@@ -136,7 +198,7 @@ class AreaUpdater {
 
         for (let update of updates) {
             let inp = update.value;
-            if (!(inp === document.activeElement)) {
+            if (!(inp === this.focusedElement)) {
                 let addr_low = parseInt(inp.getAttributeNS(MB_NS, "addr-low"));
                 let addr_high = parseInt(inp.getAttributeNS(MB_NS, "addr-high"));
                 let value_type = inp.getAttributeNS(MB_NS, "value-type") || "integer";
@@ -173,7 +235,7 @@ class AreaUpdater {
                                 if (inp.type == "checkbox") {
                                     inp.checked = Number(value) > 0;
                                 } else {
-                                    if (typeof(value) == "bigint") {
+                                    if (typeof (value) == "bigint") {
                                         let base = inp.getAttributeNS(MB_NS, "base") || 10;
                                         let sign = "";
                                         if (value < 0n) {
@@ -185,7 +247,7 @@ class AreaUpdater {
                                         } else if (base == 2) {
                                             inp.value = sign + "0b" + value.toString(2);
                                         } else {
-                                            inp.value = value;
+                                            inp.value = sign + value;
                                         }
 
                                     } else {
@@ -196,7 +258,31 @@ class AreaUpdater {
                         }
                         break;
                     case "float":
-                        breaak;
+                        {
+                            let byte_le = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+                            let word_le = inp.getAttributeNS(MB_NS, "word-order") == "little";
+                            let word_count = addr_high - addr_low + 1;
+                            if (word_count == 2) {
+                                let u32 = u16_to_u32_swapped(this.mb_values.slice(addr_low, addr_low + 2), byte_le, word_le);
+                                let b = new Uint32Array([u32]);
+                                let f = new Float32Array(b.buffer, b.byteOffset, 1);
+                                inp.value = f[0];
+                            } else if (word_count == 4) {
+                                let u32 = [
+                                    u16_to_u32_swapped(this.mb_values.slice(addr_low, addr_low + 2), byte_le, word_le),
+                                    u16_to_u32_swapped(this.mb_values.slice(addr_low + 2, addr_low + 4), byte_le, word_le)
+                                ];
+                                if (this.nativeBigEndian == word_le) {
+                                    let tmp = u32[0];
+                                    u32[0] = u32[1];
+                                    u32[1] = tmp;
+                                }
+                                let b = new Uint32Array(u32);
+                                let f = new Float64Array(b.buffer, b.byteOffset, 1);
+                                inp.value = f[0];
+                            }
+                        }
+                        break;
                     case "string":
                         let bytes = [];
                         let fill = inp.getAttributeNS(MB_NS, "fill")
@@ -260,13 +346,13 @@ function setup() {
     ws = new WebSocket(socket_uri());
     var holding_regs_elems = document.getElementById("holding_registers");
     let holding_regs = new AreaUpdater(holding_regs_elems,
-        function(data) {
+        function (data) {
             ws.send(JSON.stringify({ UpdateHoldingRegs: data }))
         });
 
     var input_regs_elems = document.getElementById("input_registers");
     let input_regs = new AreaUpdater(input_regs_elems,
-        function(data) {
+        function (data) {
             ws.send(JSON.stringify({ UpdateInputRegs: data }))
         });
 

@@ -9,7 +9,9 @@
         <register addr="2" label="Reg 2" scale="10" unit="m" initial-value="78.34"/>
         <register-range addr-low="3" addr-high="4" label="Reg 4" initial-value="8982"/>
         <register-range addr-low="5" addr-high="8" label="Reg 5" word-order="little" sign="signed" base="16" initial-value="-0x89829a88f"/>
-        <register-range addr-low="10" addr-high="19" value-type="string" fill="0" initial-value="Hello World!"></register-range>
+        <register-range addr-low="10" addr-high="19" label="String" value-type="string" fill="0" initial-value="Hello World!"></register-range>
+        <register-range addr-low="20" addr-high="21" label="Float 32" value-type="float" initial-value="0.5"></register-range>
+        <register-range addr-low="22" addr-high="25" label="Float 64" value-type="float" initial-value="12.5" word-order="little"></register-range>
     </holding-registers>
     <input-registers>
       <register addr="2" label="Reg 2" initial-value="1"/>

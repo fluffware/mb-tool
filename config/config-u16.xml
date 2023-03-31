@@ -21,6 +21,16 @@
         <register addr="17" label="Reg 17" base="16" />
         <register addr="18" label="Reg 18" base="16" />
         <register addr="19" label="Reg 19" base="16" />
+        <register addr="20" label="Reg 20" base="16" />
+        <register addr="21" label="Reg 21" base="16" />
+        <register addr="22" label="Reg 22" base="16" />
+        <register addr="23" label="Reg 23" base="16" />
+        <register addr="24" label="Reg 24" base="16" />
+        <register addr="25" label="Reg 25" base="16" />
+        <register addr="26" label="Reg 26" base="16" />
+        <register addr="27" label="Reg 27" base="16" />
+        <register addr="28" label="Reg 28" base="16" />
+        <register addr="29" label="Reg 29" base="16" />
       </holding-registers>
     <input-registers>
         <register addr="0" label="Reg 0" base="16" />
