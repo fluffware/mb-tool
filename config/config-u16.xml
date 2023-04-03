@@ -1,58 +1,58 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <tag-list xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v1">
     <holding-registers>
-        <register addr="0" label="Reg 0" base="16"/>
-        <register addr="1" label="Reg 1" base="16" />
-        <register addr="2" label="Reg 2" base="16" />
-        <register addr="3" label="Reg 3" base="16" />
-        <register addr="4" label="Reg 4" base="16" />
-        <register addr="5" label="Reg 5" base="16" />
-        <register addr="6" label="Reg 6" base="16" />
-        <register addr="7" label="Reg 7" base="16" />
-        <register addr="8" label="Reg 8" base="16" />
-        <register addr="9" label="Reg 9" base="16" />
-        <register addr="10" label="Reg 10" base="16" />
-        <register addr="11" label="Reg 11" base="16" />
-        <register addr="12" label="Reg 12" base="16" />
-        <register addr="13" label="Reg 13" base="16" />
-        <register addr="14" label="Reg 14" base="16" />
-        <register addr="15" label="Reg 15" base="16" />
-        <register addr="16" label="Reg 16" base="16" />
-        <register addr="17" label="Reg 17" base="16" />
-        <register addr="18" label="Reg 18" base="16" />
-        <register addr="19" label="Reg 19" base="16" />
-        <register addr="20" label="Reg 20" base="16" />
-        <register addr="21" label="Reg 21" base="16" />
-        <register addr="22" label="Reg 22" base="16" />
-        <register addr="23" label="Reg 23" base="16" />
-        <register addr="24" label="Reg 24" base="16" />
-        <register addr="25" label="Reg 25" base="16" />
-        <register addr="26" label="Reg 26" base="16" />
-        <register addr="27" label="Reg 27" base="16" />
-        <register addr="28" label="Reg 28" base="16" />
-        <register addr="29" label="Reg 29" base="16" />
+        <register addr="0" label="Reg 0" radix="16"/>
+        <register addr="1" label="Reg 1" radix="16" />
+        <register addr="2" label="Reg 2" radix="16" />
+        <register addr="3" label="Reg 3" radix="16" />
+        <register addr="4" label="Reg 4" radix="16" />
+        <register addr="5" label="Reg 5" radix="16" />
+        <register addr="6" label="Reg 6" radix="16" />
+        <register addr="7" label="Reg 7" radix="16" />
+        <register addr="8" label="Reg 8" radix="16" />
+        <register addr="9" label="Reg 9" radix="16" />
+        <register addr="10" label="Reg 10" radix="16" />
+        <register addr="11" label="Reg 11" radix="16" />
+        <register addr="12" label="Reg 12" radix="16" />
+        <register addr="13" label="Reg 13" radix="16" />
+        <register addr="14" label="Reg 14" radix="16" />
+        <register addr="15" label="Reg 15" radix="16" />
+        <register addr="16" label="Reg 16" radix="16" />
+        <register addr="17" label="Reg 17" radix="16" />
+        <register addr="18" label="Reg 18" radix="16" />
+        <register addr="19" label="Reg 19" radix="16" />
+        <register addr="20" label="Reg 20" radix="16" />
+        <register addr="21" label="Reg 21" radix="16" />
+        <register addr="22" label="Reg 22" radix="16" />
+        <register addr="23" label="Reg 23" radix="16" />
+        <register addr="24" label="Reg 24" radix="16" />
+        <register addr="25" label="Reg 25" radix="16" />
+        <register addr="26" label="Reg 26" radix="16" />
+        <register addr="27" label="Reg 27" radix="16" />
+        <register addr="28" label="Reg 28" radix="16" />
+        <register addr="29" label="Reg 29" radix="16" />
       </holding-registers>
     <input-registers>
-        <register addr="0" label="Reg 0" base="16" />
-        <register addr="1" label="Reg 1" base="16" />
-        <register addr="2" label="Reg 2" base="16" />
-        <register addr="3" label="Reg 3" base="16" />
-        <register addr="4" label="Reg 4" base="16" />
-        <register addr="5" label="Reg 5" base="16" />
-        <register addr="6" label="Reg 6" base="16" />
-        <register addr="7" label="Reg 7" base="16" />
-        <register addr="8" label="Reg 8" base="16" />
-        <register addr="9" label="Reg 9" base="16" />
-        <register addr="10" label="Reg 10" base="16" />
-        <register addr="11" label="Reg 11" base="16" />
-        <register addr="12" label="Reg 12" base="16" />
-        <register addr="13" label="Reg 13" base="16" />
-        <register addr="14" label="Reg 14" base="16" />
-        <register addr="15" label="Reg 15" base="16" />
-        <register addr="16" label="Reg 16" base="16" />
-        <register addr="17" label="Reg 17" base="16" />
-        <register addr="18" label="Reg 18" base="16" />
-        <register addr="19" label="Reg 19" base="16" />
+        <register addr="0" label="Reg 0" radix="16" />
+        <register addr="1" label="Reg 1" radix="16" />
+        <register addr="2" label="Reg 2" radix="16" />
+        <register addr="3" label="Reg 3" radix="16" />
+        <register addr="4" label="Reg 4" radix="16" />
+        <register addr="5" label="Reg 5" radix="16" />
+        <register addr="6" label="Reg 6" radix="16" />
+        <register addr="7" label="Reg 7" radix="16" />
+        <register addr="8" label="Reg 8" radix="16" />
+        <register addr="9" label="Reg 9" radix="16" />
+        <register addr="10" label="Reg 10" radix="16" />
+        <register addr="11" label="Reg 11" radix="16" />
+        <register addr="12" label="Reg 12" radix="16" />
+        <register addr="13" label="Reg 13" radix="16" />
+        <register addr="14" label="Reg 14" radix="16" />
+        <register addr="15" label="Reg 15" radix="16" />
+        <register addr="16" label="Reg 16" radix="16" />
+        <register addr="17" label="Reg 17" radix="16" />
+        <register addr="18" label="Reg 18" radix="16" />
+        <register addr="19" label="Reg 19" radix="16" />
     </input-registers>
     <discrete-inputs/>
     <coils/>

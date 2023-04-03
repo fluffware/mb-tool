@@ -57,10 +57,15 @@
         </xs:sequence>
         <xs:attribute name="label" type="xs:string" use="optional" />
         <xs:attribute name="initial-value" type="xs:string" use="optional" />
+        <!-- The displayed value is multiplied by this in the register -->
         <xs:attribute name="scale" type="xs:decimal" use="optional" default="1" />
         <xs:attribute name="unit" type="xs:string" use="optional" />
         <xs:attribute name="decimals" type="xs:integer" use="optional" default="2"/>
+        <!-- Strings are padded with this byte value -->
         <xs:attribute name="fill" type="xs:integer" use="optional" default="0"/>
+        <!-- The radix used to display integers. 2,10 and 16 is supported. -->
+        <xs:attribute name="radix" type="xs:integer" use="optional" default="10"/>
+
         <xs:attribute name="sign" use="optional" default="unsigned">
             <xs:simpleType>
                 <xs:restriction base="xs:string">
@@ -69,11 +74,15 @@
                 </xs:restriction>
             </xs:simpleType>
         </xs:attribute>
+        <!-- Describes how the values in the register range are interpreted -->
         <xs:attribute name="value-type" use="optional" default="integer">
             <xs:simpleType>
                 <xs:restriction base="xs:string">
+                    <!-- An integer -->
                     <xs:enumeration value="integer" />
+                    <!-- A IEEE 754 floating point number, 32 (2 regiters) or 64 bits (4 registers)-->
                     <xs:enumeration value="float" />
+                    <!-- A UTF-8 string -->
                     <xs:enumeration value="string" />
                 </xs:restriction>
             </xs:simpleType>
@@ -81,7 +90,9 @@
         <xs:attribute name="word-order" use="optional" default="big">
             <xs:simpleType>
                 <xs:restriction base="xs:string">
+                    <!-- The first register contains the higest bits in the value, the last contains the lowest -->
                     <xs:enumeration value="big" />
+                    <!-- The first register contains the lowest bits in the value, the last contains the highest -->
                     <xs:enumeration value="little" />
                 </xs:restriction>
             </xs:simpleType>
@@ -89,7 +100,9 @@
         <xs:attribute name="byte-order" use="optional" default="big">
             <xs:simpleType>
                 <xs:restriction base="xs:string">
+                    <!-- The high byte is tranfered first in the protocol message. This is the standard Modbus value -->
                     <xs:enumeration value="big" />
+                    <!-- The low byte is tranfered first in the protocol message. -->
                     <xs:enumeration value="little" />
                 </xs:restriction>
             </xs:simpleType>

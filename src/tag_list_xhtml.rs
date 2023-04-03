@@ -11,7 +11,7 @@ fn presantation_attributes(
     if let Some(unit) = &presentation.unit {
         write!(output, r#" mb:unit="{}""#, unit)?;
     }
-    write!(output, r#" mb:base="{}""#, presentation.base)?;
+    write!(output, r#" mb:radix="{}""#, presentation.radix)?;
 
     write!(output, r#" mb:decimals="{}""#, presentation.decimals)?;
 
@@ -64,7 +64,7 @@ fn build_input_field<W: Write>(
     let input_type = if let Some(encoding) = encoding {
         match encoding.value {
             ValueType::Integer { .. } => {
-                if presentation.base == 10 {
+                if presentation.radix == 10 {
                     "integer"
                 } else {
                     "text"
@@ -74,7 +74,7 @@ fn build_input_field<W: Write>(
             ValueType::String { .. } => "text",
         }
     } else {
-        if presentation.base == 10 {
+        if presentation.radix == 10 {
             "number"
         } else {
             "text"

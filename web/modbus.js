@@ -236,15 +236,15 @@ class AreaUpdater {
                                     inp.checked = Number(value) > 0;
                                 } else {
                                     if (typeof (value) == "bigint") {
-                                        let base = inp.getAttributeNS(MB_NS, "base") || 10;
+                                        let radix = inp.getAttributeNS(MB_NS, "radix") || 10;
                                         let sign = "";
                                         if (value < 0n) {
                                             sign = "-";
                                             value = -value;
                                         }
-                                        if (base == 16) {
+                                        if (radix == 16) {
                                             inp.value = sign + "0x" + value.toString(16);
-                                        } else if (base == 2) {
+                                        } else if (radix == 2) {
                                             inp.value = sign + "0b" + value.toString(2);
                                         } else {
                                             inp.value = sign + value;

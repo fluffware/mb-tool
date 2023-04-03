@@ -123,11 +123,11 @@ where
 pub fn parse_presentation(node: &Node) -> Result<Presentation, ParseError> {
     let scale: f32 = optional_attribute(node, "scale")?.unwrap_or(1.0);
     let unit: Option<String> = optional_attribute(node, "unit")?;
-    let base = optional_attribute::<u8>(node, "base")?.unwrap_or(10);
+    let radix = optional_attribute::<u8>(node, "radix")?.unwrap_or(10);
     let decimals = optional_attribute::<u8>(node, "decimals")?.unwrap_or(2);
     Ok(Presentation {
         decimals,
-        base,
+        radix,
         scale,
         unit,
     })
