@@ -1,13 +1,16 @@
 use bytes::Bytes;
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches, Parser};
 use log::{debug, error, info};
+use mb_tool::build_main_page;
 use mb_tool::error::DynResult;
 use mb_tool::modbus_connection;
 use mb_tool::observable_array::ObservableArray;
 use mb_tool::tag_list_xml;
 use mb_tool::tag_ranges::TagRanges;
 use mb_tool::tags::Tags;
+use mb_tool::web_server;
 use roxmltree::Document;
+use serde_derive::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -18,10 +21,6 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tokio_modbus::slave::Slave;
 use tokio_serial::SerialStream;
-
-use mb_tool::build_main_page;
-use mb_tool::web_server;
-use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 enum MbCommands {
@@ -176,18 +175,97 @@ struct CmdArgs {
     /// Serial device
     #[arg(long)]
     serial_device: Option<String>,
+    /// Baud rate of serial port
     #[arg(long)]
     baud_rate: Option<u32>,
     /// HTTP port
-    #[arg(long, default_value_t = 8090)]
+    #[arg(long, default_value_t = 0)]
     http_port: u16,
+    /*
+        /// Don't try to start a web browser
+        #[arg(long)]
+        no_browser: bool,
+    */
+}
+
+#[cfg(feature="webbrowser")]
+mod browser {
+    use clap::{Arg, ArgMatches, Command};
+    use futures_util::future::FutureExt;
+    use log::{info, warn};
+    use std::future::Future;
+    use std::pin::Pin;
+    use tokio::time::sleep;
+    use tokio::time::Duration;
+
+    pub fn add_args(cmd: Command) -> Command {
+        cmd.arg(
+            Arg::new("start_browser")
+                .value_name("START")
+                .long("start-browser")
+                .default_value("true")
+                .value_parser(clap::value_parser!(bool))
+                .help("Don't try to start a web browser"),
+        )
+    }
+
+    pub fn start(matches: &ArgMatches, url: &str) -> impl Future {
+        let start_browser = *matches.get_one::<bool>("start_browser").unwrap();
+        let url = url.to_owned();
+        let browser_start: Pin<Box<dyn Future<Output = ()>>> = if start_browser {
+            let timeout = sleep(Duration::from_secs(2));
+            Box::pin(
+                timeout
+                    .then(|_| async move {
+                        info!("Starting browser for {url}");
+                        match webbrowser::open(&url) {
+                            Err(e) => warn!("Failed to open control page in browser: {e}"),
+                            _ => {}
+                        }
+                    })
+                    .then(|_| std::future::pending()),
+            )
+        } else {
+            info!("Connect a web browser to {url}");
+            Box::pin(std::future::pending())
+        };
+        browser_start
+    }
+}
+
+
+#[cfg(not(feature="webbrowser"))]
+mod browser {
+    use log::{info};
+    use clap::{ArgMatches, Command};
+    use std::future::Future;
+    
+    pub fn add_args(cmd: Command) -> Command {
+        cmd
+    }
+
+    pub fn start(_matches: &ArgMatches, url: &str) -> impl Future {
+        info!("Connect a web browser to {url}");
+        Box::pin(std::future::pending::<()>())
+    }
 }
 
 #[tokio::main]
 pub async fn main() -> ExitCode {
     tracing_subscriber::fmt::init();
 
-    let args = CmdArgs::parse();
+    let cmd = CmdArgs::command();
+
+    let cmd = browser::add_args(cmd);
+
+    let matches = cmd.get_matches();
+    let args = match CmdArgs::from_arg_matches(&matches) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     let mut f = match File::open(&args.tag_list_conf) {
         Ok(f) => f,
@@ -272,11 +350,22 @@ pub async fn main() -> ExitCode {
             info!("Running as TCP client connected to {}:{}", addr, port);
         }
     }
+
     let conf = web_server::ServerConfig::new(ws_send, mb_send);
     let conf = conf.port(args.http_port);
     let conf = conf.build_page(build_main_page::build_page(tag_list));
+    let (server, bound_port) = web_server::setup_server(conf);
+
+    let url = format!("http://127.0.0.1:{}", bound_port);
+    let browser_start = browser::start(&matches, &url);
+
     tokio::select! {
-        _ = web_server::run_server(conf) => {},
+        res = server => {
+            if let Err(e) = res {
+                error!("server error: {e}");
+                return ExitCode::FAILURE;
+    }
+        },
         res = join => {
             match res {
                 Ok(res) => {
@@ -291,6 +380,7 @@ pub async fn main() -> ExitCode {
                 }
             }
         }
+        _ = browser_start => {}
     }
     ExitCode::SUCCESS
 }

@@ -3,6 +3,9 @@ name = "mb-tool"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["webbrowser"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -28,6 +31,7 @@ tokio-modbus = {version="0.5.4", default-features = false, features=["server", "
 tokio-serial = "5.4.4"
 num-traits = "*"
 num-bigint = "0.4"
+webbrowser= {version = "0.8", optional=true}
 
 [patch.crates-io]
 websocket-lite = {git = "https://github.com/1tgr/rust-websocket-lite.git"}

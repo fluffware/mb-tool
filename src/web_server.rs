@@ -11,6 +11,7 @@ use hyper_websocket_lite::AsyncClient;
 #[allow(unused_imports)]
 use log::{debug, error, info};
 use std::convert::Infallible;
+use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -140,22 +141,19 @@ async fn handle(conf: Arc<Mutex<ServerConfig>>, req: Request<Body>) -> DynResult
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
     }
 }
-
-pub async fn run_server(conf: ServerConfig) {
-    let port = conf.port.unwrap_or(8090);
+pub fn setup_server(conf: ServerConfig) -> (impl Future<Output = Result<(), hyper::Error>>, u16)
+{
+    let port = conf.port.unwrap_or(0);
     let bind_addr = conf
         .bind_addr
         .unwrap_or_else(|| IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     let socket_addr = SocketAddr::new(bind_addr, port);
     let conf = Arc::new(Mutex::new(conf));
-    let make_service = make_service_fn(|_conn| {
+    let make_service = make_service_fn(move |_conn| {
         let conf = conf.clone();
-        async { Ok::<_, Infallible>(service_fn(move |req| handle(conf.clone(), req))) }
+        async move { Ok::<_, Infallible>(service_fn(move |req| handle(conf.clone(), req))) }
     });
     let server = Server::bind(&socket_addr).serve(make_service);
-
-    // And run forever...
-    if let Err(e) = server.await {
-        error!("server error: {e}");
-    }
+    let port = server.local_addr().port();
+    (server, port)
 }
