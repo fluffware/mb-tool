@@ -1,4 +1,4 @@
-use crate::encoding::{ValueType, Encoding};
+use crate::encoding::{Encoding, ValueType};
 use crate::tag_list::RegisterRange;
 use num_bigint::{BigUint, ParseBigIntError};
 use num_traits::cast::FromPrimitive;
@@ -124,20 +124,18 @@ pub fn parse(regs: &RegisterRange, value_str: &str) -> Result<Vec<u16>, ParseErr
             }
             words = build_words_from_le(&bytes, &regs.encoding)
         }
-        ValueType::Float => {
-            match word_count {
-                2 => {
-                    let v: f32 = str::parse(value_str)?;
+        ValueType::Float => match word_count {
+            2 => {
+                let v: f32 = str::parse(value_str)?;
 
-                    words = build_words_from_le(&v.to_le_bytes(), &regs.encoding);
-                }
-                4 => {
-                    let v: f64 = str::parse(value_str)?;
-                    words = build_words_from_le(&v.to_le_bytes(), &regs.encoding);
-                }
-                _ => return Err(ParseError::InvalidFloatLength),
+                words = build_words_from_le(&v.to_le_bytes(), &regs.encoding);
             }
-        }
+            4 => {
+                let v: f64 = str::parse(value_str)?;
+                words = build_words_from_le(&v.to_le_bytes(), &regs.encoding);
+            }
+            _ => return Err(ParseError::InvalidFloatLength),
+        },
         ValueType::String { fill } => {
             let high_first = regs.encoding.byte_order.is_big_endian();
             words = {

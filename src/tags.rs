@@ -1,5 +1,6 @@
 use crate::observable_array::ObservableArray;
 use crate::register_value;
+use crate::tag_list::RegisterSequence;
 use crate::tag_list::TagList;
 use log::error;
 
@@ -18,10 +19,10 @@ impl Tags {
         let discrete_inputs = ObservableArray::new(65536);
         let coils = ObservableArray::new(65536);
 
-        for reg in &init.holding_registers {
+        for (reg, ctxt) in init.holding_registers.register_iter() {
             if let Some(value_str) = reg.initial_value.as_ref() {
                 match register_value::parse(reg, &value_str) {
-                    Ok(v) => holding_registers.update(reg.address_low as usize, &v),
+                    Ok(v) => holding_registers.update((reg.address_low + ctxt.base_address) as usize, &v),
                     Err(e) => error!(
                         "Failed to parse initial value for holding register at address {}: {}",
                         reg.address_low, e
@@ -29,10 +30,10 @@ impl Tags {
                 }
             }
         }
-        for reg in &init.input_registers {
+        for (reg,ctxt) in init.input_registers.register_iter() {
             if let Some(value_str) = reg.initial_value.as_ref() {
                 match register_value::parse(reg, &value_str) {
-                    Ok(v) => input_registers.update(reg.address_low as usize, &v),
+                    Ok(v) => input_registers.update((reg.address_low + ctxt.base_address) as usize, &v),
                     Err(e) => error!(
                         "Failed to parse initial value for input register at address {}: {}",
                         reg.address_low, e

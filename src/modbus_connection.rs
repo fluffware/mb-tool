@@ -232,7 +232,7 @@ impl ClientOp {
                 let data = client.read_coils(*start, *length).await?;
                 tags.coils.update(*start as usize, &data);
             }
-            /* 
+            /*
             ClientOp::WriteCoils(start, length) => {
                 let data = tags
                     .coils

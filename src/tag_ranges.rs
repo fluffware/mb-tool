@@ -1,5 +1,5 @@
 use crate::range_array::RangeArray;
-use crate::tag_list::TagList;
+use crate::tag_list::{RegisterOrGroup, TagList};
 
 #[derive(Debug)]
 pub struct TagRanges {
@@ -26,19 +26,30 @@ impl Default for TagRanges {
     }
 }
 
+fn get_ranges(ranges: &mut RangeArray<u16>, base_address: u16, registers: &[RegisterOrGroup]) {
+    for reg in registers {
+        match reg {
+            RegisterOrGroup::Register(r) => {
+                ranges.union(&(r.address_low + base_address..r.address_high + base_address + 1));
+            }
+            RegisterOrGroup::Group(g) => {
+                get_ranges(ranges, base_address + g.base_address, &g.registers);
+            }
+        }
+    }
+}
+
 impl From<&TagList> for TagRanges {
     fn from(tag_list: &TagList) -> Self {
         let mut ranges = Self::new();
-        for reg in &tag_list.input_registers {
-            ranges
-                .input_registers
-                .union(&(reg.address_low..reg.address_high + 1));
-        }
-        for reg in &tag_list.holding_registers {
-            ranges
-                .holding_registers
-                .union(&(reg.address_low..reg.address_high + 1));
-        }
+        get_ranges(&mut ranges.input_registers, 0, &tag_list.input_registers);
+
+        get_ranges(
+            &mut ranges.holding_registers,
+            0,
+            &tag_list.holding_registers,
+        );
+
         for bit in &tag_list.discrete_inputs {
             ranges
                 .discrete_inputs

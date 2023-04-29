@@ -188,7 +188,7 @@ struct CmdArgs {
     */
 }
 
-#[cfg(feature="webbrowser")]
+#[cfg(feature = "webbrowser")]
 mod browser {
     use clap::{Arg, ArgMatches, Command};
     use futures_util::future::FutureExt;
@@ -233,13 +233,12 @@ mod browser {
     }
 }
 
-
-#[cfg(not(feature="webbrowser"))]
+#[cfg(not(feature = "webbrowser"))]
 mod browser {
-    use log::{info};
     use clap::{ArgMatches, Command};
+    use log::info;
     use std::future::Future;
-    
+
     pub fn add_args(cmd: Command) -> Command {
         cmd
     }

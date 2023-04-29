@@ -1,6 +1,6 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
-use crate::tag_list::{Bit, RegisterField, RegisterRange, TagList};
+use crate::tag_list::{Bit, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange, TagList};
 use roxmltree::{Node, TextPos};
 use std::error::Error;
 use std::num::ParseIntError;
@@ -248,19 +248,35 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
     })
 }
 
-pub fn parse_registers(parent: &Node) -> Result<Vec<RegisterRange>, ParseError> {
+pub fn parse_group(node: &Node) -> Result<RegisterGroup, ParseError> {
+    let base_address = required_attribute::<ParsedU16>(node, "base-addr")?.into();
+    let label: Option<String> = optional_attribute(node, "label")?;
+    let registers = parse_registers_or_groups(node)?;
+    Ok(RegisterGroup {
+        base_address,
+        label,
+        registers,
+    })
+}
+
+pub fn parse_registers_or_groups(parent: &Node) -> Result<Vec<RegisterOrGroup>, ParseError> {
     let mut regs = Vec::new();
     for child in parent.children() {
         if check_element_ns(&child)? {
             match child.tag_name().name() {
                 "register" => {
                     let reg = parse_register(&child)?;
-                    regs.push(reg);
+                    regs.push(RegisterOrGroup::Register(reg));
                 }
                 "register-range" => {
                     let reg = parse_register(&child)?;
-                    regs.push(reg);
+                    regs.push(RegisterOrGroup::Register(reg));
                 }
+                "group" => {
+                    let reg = parse_group(&child)?;
+                    regs.push(RegisterOrGroup::Group(reg));
+                }
+
                 _ => return Err(ParseError::new(&child, UnexpectedElement)),
             }
         }
@@ -351,11 +367,11 @@ pub fn parse_tag_list(node: &Node) -> Result<TagList, ParseError> {
         if check_element_ns(&child)? {
             match child.tag_name().name() {
                 "holding-registers" => {
-                    let regs = parse_registers(&child)?;
+                    let regs = parse_registers_or_groups(&child)?;
                     holding_registers = Some(regs);
                 }
                 "input-registers" => {
-                    let regs = parse_registers(&child)?;
+                    let regs = parse_registers_or_groups(&child)?;
                     input_registers = Some(regs);
                 }
                 "discrete-inputs" => {

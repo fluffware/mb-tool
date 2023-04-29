@@ -8,14 +8,14 @@ impl ByteOrder {
     pub fn is_big_endian(&self) -> bool {
         match self {
             Self::BigEndian => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_little_endian(&self) -> bool {
         match self {
             Self::LittleEndian => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -30,14 +30,14 @@ impl WordOrder {
     pub fn is_big_endian(&self) -> bool {
         match self {
             Self::BigEndian => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_little_endian(&self) -> bool {
         match self {
             Self::LittleEndian => true,
-            _ => false
+            _ => false,
         }
     }
 }

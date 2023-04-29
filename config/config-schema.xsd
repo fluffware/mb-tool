@@ -1,114 +1,123 @@
 <?xml version="1.0"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-    targetNamespace="http://www.elektro-kapsel.se/xml/modbus_config/v1"
-    xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v1"
-    elementFormDefault="qualified">
+	   targetNamespace="http://www.elektro-kapsel.se/xml/modbus_config/v1"
+	   xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v1"
+	   elementFormDefault="qualified">
 
-    <xs:element name="tag-list">
-        <xs:complexType>
-            <xs:sequence>
-                <xs:element name="holding-registers" type="registers" />
-                <xs:element name="input-registers" type="registers" />
-                <xs:element name="discrete-inputs" />
-                <xs:element name="coils" />
+  <xs:element name="tag-list">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="holding-registers" type="registers_or_groups" />
+        <xs:element name="input-registers" type="registers_or_groups" />
+        <xs:element name="discrete-inputs" />
+        <xs:element name="coils" />
 
-            </xs:sequence>
-        </xs:complexType>
-    </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
 
 
-    <xs:complexType name="registers">
-        <xs:sequence>
-        <xs:choice minOccurs="0" maxOccurs="unbounded"> 
-            <xs:element name="register">
-                <xs:complexType>
-                    <xs:complexContent>
-                        <xs:extension base="reg_attrs">
-                            <xs:attribute name="addr" type="xs:integer" use="required" />
-                        </xs:extension>
-                    </xs:complexContent>
-                </xs:complexType>
-            </xs:element>
-            <xs:element name="register-range" >
-                <xs:complexType>
-                    <xs:complexContent>
-                        <xs:extension base="reg_attrs">
-                    <xs:attribute name="addr-low" type="xs:integer" use="required" />
-                    <xs:attribute name="addr-high" type="xs:integer" use="required" />
-                    </xs:extension>
-                    </xs:complexContent>
-                </xs:complexType>
-            </xs:element>
-        </xs:choice>
+  <xs:complexType name="registers_or_groups">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded"> 
+        <xs:element name="register">
+          <xs:complexType>
+            <xs:complexContent>
+              <xs:extension base="reg_attrs">
+                <xs:attribute name="addr" type="xs:integer" use="required" />
+              </xs:extension>
+            </xs:complexContent>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="register-range" >
+          <xs:complexType>
+            <xs:complexContent>
+              <xs:extension base="reg_attrs">
+                <xs:attribute name="addr-low" type="xs:integer" use="required" />
+                <xs:attribute name="addr-high" type="xs:integer" use="required" />
+              </xs:extension>
+            </xs:complexContent>
+          </xs:complexType>
+        </xs:element>
+	<xs:element name="group">
+	   <xs:complexType>
+             <xs:complexContent>
+	       <xs:extension base="registers_or_groups">
+		 <xs:attribute name="label" type="xs:string" use="optional" />
+		 <xs:attribute name="base-addr" type="xs:integer" use="required" />
+	       </xs:extension>
+	     </xs:complexContent>
+	   </xs:complexType>
+	</xs:element>
+      </xs:choice>
     </xs:sequence>
-    </xs:complexType>
+  </xs:complexType>
 
-    <xs:complexType name="reg_attrs">
-        <xs:sequence>
-            <xs:element name="field" minOccurs="0" maxOccurs="unbounded">
-                <xs:complexType>
-                    <xs:attribute name="label" type="xs:string" use="optional" />
-                    <xs:attribute name="bit-low" type="xs:integer" use="optional" />
-                    <xs:attribute name="bit-high" type="xs:integer" use="optional" />
-                    <xs:attribute name="bit" type="xs:string" use="optional" />
-                    
-                </xs:complexType>
-            </xs:element>
-        </xs:sequence>
-        <xs:attribute name="label" type="xs:string" use="optional" />
-        <xs:attribute name="initial-value" type="xs:string" use="optional" />
-        <!-- The displayed value is multiplied by this in the register -->
-        <xs:attribute name="scale" type="xs:decimal" use="optional" default="1" />
-        <xs:attribute name="unit" type="xs:string" use="optional" />
-        <xs:attribute name="decimals" type="xs:integer" use="optional" default="2"/>
-        <!-- Strings are padded with this byte value -->
-        <xs:attribute name="fill" type="xs:integer" use="optional" default="0"/>
-        <!-- The radix used to display integers. 2,10 and 16 is supported. -->
-        <xs:attribute name="radix" type="xs:integer" use="optional" default="10"/>
+  <xs:complexType name="reg_attrs">
+    <xs:sequence>
+      <xs:element name="field" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="label" type="xs:string" use="optional" />
+          <xs:attribute name="bit-low" type="xs:integer" use="optional" />
+          <xs:attribute name="bit-high" type="xs:integer" use="optional" />
+          <xs:attribute name="bit" type="xs:string" use="optional" />
+          
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="label" type="xs:string" use="optional" />
+    <xs:attribute name="initial-value" type="xs:string" use="optional" />
+    <!-- The displayed value is multiplied by this in the register -->
+    <xs:attribute name="scale" type="xs:decimal" use="optional" default="1" />
+    <xs:attribute name="unit" type="xs:string" use="optional" />
+    <xs:attribute name="decimals" type="xs:integer" use="optional" default="2"/>
+    <!-- Strings are padded with this byte value -->
+    <xs:attribute name="fill" type="xs:integer" use="optional" default="0"/>
+    <!-- The radix used to display integers. 2,10 and 16 is supported. -->
+    <xs:attribute name="radix" type="xs:integer" use="optional" default="10"/>
 
-        <xs:attribute name="sign" use="optional" default="unsigned">
-            <xs:simpleType>
-                <xs:restriction base="xs:string">
-                    <xs:enumeration value="signed" />
-                    <xs:enumeration value="unsigned" />
-                </xs:restriction>
-            </xs:simpleType>
-        </xs:attribute>
-        <!-- Describes how the values in the register range are interpreted -->
-        <xs:attribute name="value-type" use="optional" default="integer">
-            <xs:simpleType>
-                <xs:restriction base="xs:string">
-                    <!-- An integer -->
-                    <xs:enumeration value="integer" />
-                    <!-- A IEEE 754 floating point number, 32 (2 regiters) or 64 bits (4 registers)-->
-                    <xs:enumeration value="float" />
-                    <!-- A UTF-8 string -->
-                    <xs:enumeration value="string" />
-                </xs:restriction>
-            </xs:simpleType>
-        </xs:attribute>
-        <xs:attribute name="word-order" use="optional" default="big">
-            <xs:simpleType>
-                <xs:restriction base="xs:string">
-                    <!-- The first register contains the higest bits in the value, the last contains the lowest -->
-                    <xs:enumeration value="big" />
-                    <!-- The first register contains the lowest bits in the value, the last contains the highest -->
-                    <xs:enumeration value="little" />
-                </xs:restriction>
-            </xs:simpleType>
-        </xs:attribute>
-        <xs:attribute name="byte-order" use="optional" default="big">
-            <xs:simpleType>
-                <xs:restriction base="xs:string">
-                    <!-- The high byte is tranfered first in the protocol message. This is the standard Modbus value -->
-                    <xs:enumeration value="big" />
-                    <!-- The low byte is tranfered first in the protocol message. -->
-                    <xs:enumeration value="little" />
-                </xs:restriction>
-            </xs:simpleType>
-        </xs:attribute>
-        
-    </xs:complexType>
+    <xs:attribute name="sign" use="optional" default="unsigned">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="signed" />
+          <xs:enumeration value="unsigned" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <!-- Describes how the values in the register range are interpreted -->
+    <xs:attribute name="value-type" use="optional" default="integer">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <!-- An integer -->
+          <xs:enumeration value="integer" />
+          <!-- A IEEE 754 floating point number, 32 (2 regiters) or 64 bits (4 registers)-->
+          <xs:enumeration value="float" />
+          <!-- A UTF-8 string -->
+          <xs:enumeration value="string" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="word-order" use="optional" default="big">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <!-- The first register contains the higest bits in the value, the last contains the lowest -->
+          <xs:enumeration value="big" />
+          <!-- The first register contains the lowest bits in the value, the last contains the highest -->
+          <xs:enumeration value="little" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="byte-order" use="optional" default="big">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <!-- The high byte is tranfered first in the protocol message. This is the standard Modbus value -->
+          <xs:enumeration value="big" />
+          <!-- The low byte is tranfered first in the protocol message. -->
+          <xs:enumeration value="little" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    
+  </xs:complexType>
 
 </xs:schema>
-    

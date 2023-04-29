@@ -1,12 +1,17 @@
-.register_addr {
-    width: 3em;
+.register_addr, .group_addr {
+    width: 7em;
     display: inline-block;
 }
 
+.register_label, .group_label, .field_label {
+    margin-right:1em;
+}
+
 .field_bits {
-    width: 3em;
+    width: 7em;
     display: inline-block;
 }
+
 
 input.mb_value:focus {
     background: rgb(253, 203, 203);

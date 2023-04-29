@@ -141,8 +141,7 @@ async fn handle(conf: Arc<Mutex<ServerConfig>>, req: Request<Body>) -> DynResult
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
     }
 }
-pub fn setup_server(conf: ServerConfig) -> (impl Future<Output = Result<(), hyper::Error>>, u16)
-{
+pub fn setup_server(conf: ServerConfig) -> (impl Future<Output = Result<(), hyper::Error>>, u16) {
     let port = conf.port.unwrap_or(0);
     let bind_addr = conf
         .bind_addr
