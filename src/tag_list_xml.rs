@@ -1,6 +1,8 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
-use crate::tag_list::{Bit, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange, TagList};
+use crate::tag_list::{
+    Bit, IntegerEnum, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange, TagList,
+};
 use roxmltree::{Node, TextPos};
 use std::error::Error;
 use std::num::ParseIntError;
@@ -191,6 +193,12 @@ pub fn parse_encoding(node: &Node) -> Result<Encoding, ParseError> {
     })
 }
 
+pub fn parse_enum(node: &Node) -> Result<IntegerEnum, ParseError> {
+    let label:String = required_attribute(node, "label")?;
+    let value = required_attribute::<ParsedU16>(node, "value")?.into();
+    Ok(IntegerEnum{value, label})
+}
+
 pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
     let bit: Option<u8> = optional_attribute(node, "bit")?;
     let bit_low: Option<u8> = optional_attribute(node, "bit-low")?;
@@ -202,11 +210,24 @@ pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
         _ => return Err(ParseError::new(node, ParseErrorKind::BitRange)),
     };
     let presentation = parse_presentation(node)?;
+    let mut enums = Vec::new();
+    for child in node.children() {
+        if check_element_ns(&child)? {
+            match child.tag_name().name() {
+                "enum" => {
+                    let enu = parse_enum(&child)?;
+                    enums.push(enu);
+                }
+                _ => return Err(ParseError::new(&child, UnexpectedElement)),
+            }
+        }
+    }
     Ok(RegisterField {
         bit_low,
         bit_high,
         label,
         presentation,
+        enums,
     })
 }
 
@@ -226,12 +247,17 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
     let encoding = parse_encoding(node)?;
 
     let mut fields = Vec::new();
+     let mut enums = Vec::new();
     for child in node.children() {
         if check_element_ns(&child)? {
             match child.tag_name().name() {
                 "field" => {
                     let field = parse_register_field(&child)?;
                     fields.push(field);
+                }
+		"enum" => {
+                    let  enu = parse_enum(&child)?;
+                    enums.push(enu);
                 }
                 _ => return Err(ParseError::new(&child, UnexpectedElement)),
             }
@@ -245,6 +271,7 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
         initial_value,
         presentation,
         encoding,
+	enums
     })
 }
 

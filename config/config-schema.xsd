@@ -55,8 +55,12 @@
 
   <xs:complexType name="reg_attrs">
     <xs:sequence>
+      <xs:element name="enum" type="enum_type" minOccurs="0" maxOccurs="unbounded"/>
       <xs:element name="field" minOccurs="0" maxOccurs="unbounded">
         <xs:complexType>
+	  <xs:sequence>
+	    <xs:element name="enum" type="enum_type" minOccurs="0" maxOccurs="unbounded"/>
+	  </xs:sequence>
           <xs:attribute name="label" type="xs:string" use="optional" />
           <xs:attribute name="bit-low" type="xs:integer" use="optional" />
           <xs:attribute name="bit-high" type="xs:integer" use="optional" />
@@ -119,5 +123,9 @@
     </xs:attribute>
     
   </xs:complexType>
-
+  
+  <xs:complexType name="enum_type">
+    <xs:attribute name="label" type="xs:string" />
+    <xs:attribute name="value" type="xs:integer" />
+  </xs:complexType>
 </xs:schema>

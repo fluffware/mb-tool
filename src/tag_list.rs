@@ -2,6 +2,13 @@ use super::encoding::Encoding;
 use super::presentation::Presentation;
 
 #[derive(Debug)]
+pub struct IntegerEnum
+{
+    pub value: u16,
+    pub label: String,
+}
+
+#[derive(Debug)]
 pub struct RegisterRange {
     pub address_low: u16,           // Lowest address for this range
     pub address_high: u16,          // Highesr address for this range, inclusive
@@ -10,6 +17,7 @@ pub struct RegisterRange {
     pub initial_value: Option<String>,
     pub presentation: Presentation, // How the value should be displayed
     pub encoding: Encoding,         // How the value is envoded in the range
+    pub enums: Vec<IntegerEnum>, // Enumerated values for this register
 }
 
 #[derive(Debug)]
@@ -18,7 +26,9 @@ pub struct RegisterField {
     pub bit_high: u8, // Highest bit in the field, inclusive
     pub label: Option<String>,
     pub presentation: Presentation,
+    pub enums: Vec<IntegerEnum>, // Enumerated values for this register
 }
+
 
 pub struct RegisterGroup {
     pub base_address: u16, // Register addresses in this group are offset by this amount

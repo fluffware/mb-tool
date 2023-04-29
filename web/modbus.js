@@ -255,6 +255,9 @@ class AreaUpdater {
                                     }
                                 }
                             }
+			    else if (inp.localName == "select") {
+				 inp.value = Number(value);
+			    }
                         }
                         break;
                     case "float":

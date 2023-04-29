@@ -1,6 +1,6 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
-use crate::tag_list::{RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange};
+use crate::tag_list::{IntegerEnum, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange};
 use std::fmt::{Result, Write};
 
 #[derive(Clone)]
@@ -66,6 +66,15 @@ fn addr_to_string(addr: u16, base_addr: u16) -> String {
     } else {
         format!("{} ({})", addr, addr + base_addr)
     }
+}
+
+fn build_enum_field<W: Write>(w: &mut W, enums: &[IntegerEnum], attrs: &str) -> Result {
+    write!(w, "<select class=\"mb_value mb_enum\" {attrs}>\n",)?;
+    for e in enums {
+	write!(w, "<option value=\"{}\">{}</option>\n", e.value, e.label)?;
+    }
+    write!(w, "</select>\n",)?;
+    Ok(())
 }
 
 fn build_input_field<W: Write>(
@@ -145,6 +154,9 @@ fn build_field<W: Write>(
             field.bit_high
         )?;
     }
+    if !field.enums.is_empty() {
+	build_enum_field(w, &field.enums, &input_attrs)?;
+    }
     write!(w, "</li>")?;
 
     Ok(())
@@ -180,7 +192,9 @@ fn build_register<W: Write>(w: &mut W, ctxt: &BuildContext, register: &RegisterR
         Some(&register.encoding),
         &input_attrs,
     )?;
-
+    if !register.enums.is_empty() {
+	build_enum_field(w, &register.enums, &input_attrs)?;
+    }
     if let Some(unit) = &register.presentation.unit {
         write!(w, r#"<span class="unit">{unit}</span>"#)?;
     }
