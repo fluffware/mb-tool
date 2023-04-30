@@ -65,7 +65,7 @@ fn addr_to_string(addr: u16, base_addr: u16) -> String {
     if base_addr == 0 {
         format!("{}", addr)
     } else {
-        format!("{} ({})", addr, addr + base_addr)
+        format!("{} ({})", addr  + base_addr, addr)
     }
 }
 
@@ -130,11 +130,11 @@ fn build_field<W: Write>(
 ) -> Result {
     write!(w, r#"<li class="field_item">"#)?;
     if field.bit_low == field.bit_high {
-        write!(w, r#"<span class="field_bits">{}</span>"#, field.bit_low)?;
+        write!(w, r#"<span class="field_bits">@{}</span>"#, field.bit_low)?;
     } else {
         write!(
             w,
-            r#"<span class="field_bits">{}-{}</span>"#,
+            r#"<span class="field_bits">@{}-{}</span>"#,
             field.bit_high, field.bit_low
         )?;
     }
