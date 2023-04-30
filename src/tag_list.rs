@@ -2,8 +2,7 @@ use super::encoding::Encoding;
 use super::presentation::Presentation;
 
 #[derive(Debug)]
-pub struct IntegerEnum
-{
+pub struct IntegerEnum {
     pub value: u16,
     pub label: String,
 }
@@ -17,7 +16,7 @@ pub struct RegisterRange {
     pub initial_value: Option<String>,
     pub presentation: Presentation, // How the value should be displayed
     pub encoding: Encoding,         // How the value is envoded in the range
-    pub enums: Vec<IntegerEnum>, // Enumerated values for this register
+    pub enums: Vec<IntegerEnum>,    // Enumerated values for this register
 }
 
 #[derive(Debug)]
@@ -28,7 +27,6 @@ pub struct RegisterField {
     pub presentation: Presentation,
     pub enums: Vec<IntegerEnum>, // Enumerated values for this register
 }
-
 
 pub struct RegisterGroup {
     pub base_address: u16, // Register addresses in this group are offset by this amount
@@ -41,23 +39,21 @@ pub enum RegisterOrGroup {
     Group(RegisterGroup),
 }
 
-
 /// Contains inherited values that may affect the register
 #[derive(Clone)]
-pub struct RegisterContext
-{
+pub struct RegisterContext {
     pub base_address: u16,
 }
 
 pub trait RegisterSequence<'a, I>
 where
-    I: Iterator<Item = (&'a RegisterRange, RegisterContext) >,
+    I: Iterator<Item = (&'a RegisterRange, RegisterContext)>,
 {
     fn register_iter(&'a self) -> I;
 }
 
 pub struct RegisterIter<'a> {
-    pos:Vec<(std::slice::Iter<'a, RegisterOrGroup>, RegisterContext)>,
+    pos: Vec<(std::slice::Iter<'a, RegisterOrGroup>, RegisterContext)>,
 }
 
 impl<'a> Iterator for RegisterIter<'a> {
@@ -67,8 +63,8 @@ impl<'a> Iterator for RegisterIter<'a> {
             match ri.next() {
                 Some(RegisterOrGroup::Register(r)) => return Some((r, ctxt.clone())),
                 Some(RegisterOrGroup::Group(g)) => {
-		    let mut ctxt = ctxt.clone();
-		    ctxt.base_address += g.base_address;
+                    let mut ctxt = ctxt.clone();
+                    ctxt.base_address += g.base_address;
                     self.pos.push((g.registers.iter(), ctxt));
                 }
                 None => {
@@ -83,7 +79,7 @@ impl<'a> Iterator for RegisterIter<'a> {
 impl<'a> RegisterSequence<'a, RegisterIter<'a>> for Vec<RegisterOrGroup> {
     fn register_iter(&'a self) -> RegisterIter<'a> {
         RegisterIter {
-            pos: vec![(self.iter(), RegisterContext{base_address: 0})],
+            pos: vec![(self.iter(), RegisterContext { base_address: 0 })],
         }
     }
 }

@@ -69,60 +69,64 @@ async fn mb_task(
 
                     Ok(json) => {
                         debug!("JSON: {}", json);
-                        if let Ok(cmd) = serde_json::from_str::<MbCommands>(json) {
-
-                            match cmd {
-                // Holding registers
-                                MbCommands::RequestHoldingRegs{start, length} => {
-                                    debug!("RequestHoldingRegs");
+                        match serde_json::from_str::<MbCommands>(json) {
+                Ok(cmd) => {
+                match cmd {
+                    // Holding registers
+                                    MbCommands::RequestHoldingRegs{start, length} => {
+                    debug!("RequestHoldingRegs");
                     ws_request(&tags.holding_registers, &mb_send,start, length,
                            |start, regs| {
-                           MbCommands::UpdateHoldingRegs{start, regs}
+                               MbCommands::UpdateHoldingRegs{start, regs}
                            });
 
-                                } ,
-                                MbCommands::UpdateHoldingRegs{start, regs: reg_data} => {
-                                    tags.holding_registers.update(start as usize, &reg_data);
-                                } ,
+                                    } ,
+                                    MbCommands::UpdateHoldingRegs{start, regs: reg_data} => {
+                    tags.holding_registers.update(start as usize, &reg_data);
+                                    } ,
 
-                // Input registers
-                MbCommands::RequestInputRegs{start, length} => {
+                    // Input registers
+                    MbCommands::RequestInputRegs{start, length} => {
                     debug!("RequestInputRegs");
                     ws_request(&tags.input_registers, &mb_send,start, length,
                            |start, regs| {
-                           MbCommands::UpdateInputRegs{start, regs}
+                               MbCommands::UpdateInputRegs{start, regs}
                            });
-                                } ,
-                                MbCommands::UpdateInputRegs{start, regs: reg_data} => {
-                                    tags.input_registers.update(start as usize, &reg_data);
-                                } ,
+                                    } ,
+                                    MbCommands::UpdateInputRegs{start, regs: reg_data} => {
+                    tags.input_registers.update(start as usize, &reg_data);
+                                    } ,
 
-                // Coils
-                MbCommands::RequestCoils{start, length} => {
+                    // Coils
+                    MbCommands::RequestCoils{start, length} => {
                     debug!("RequestCoils");
                     ws_request(&tags.coils, &mb_send,start, length,
                            |start, regs| {
-                           MbCommands::UpdateCoils{start, regs}
+                               MbCommands::UpdateCoils{start, regs}
                            });
-                                } ,
-                                MbCommands::UpdateCoils{start, regs: reg_data} => {
-                                    tags.coils.update(start as usize, &reg_data);
-                                } ,
+                                    } ,
+                                    MbCommands::UpdateCoils{start, regs: reg_data} => {
+                    tags.coils.update(start as usize, &reg_data);
+                                    } ,
 
-                // Discrete inputs
-                MbCommands::RequestDiscreteInputs{start, length} => {
+                    // Discrete inputs
+                    MbCommands::RequestDiscreteInputs{start, length} => {
                     debug!("RequestDiscreteInputs");
                     ws_request(&tags.discrete_inputs, &mb_send,start, length,
                            |start, regs| {
-                           MbCommands::UpdateDiscreteInputs{start, regs}
+                               MbCommands::UpdateDiscreteInputs{start, regs}
                            });
-                                } ,
-                                MbCommands::UpdateDiscreteInputs{start, regs: reg_data} => {
-                                    tags.discrete_inputs.update(start as usize, &reg_data);
-                                } ,
-                            }
+                                    } ,
+                                    MbCommands::UpdateDiscreteInputs{start, regs: reg_data} => {
+                    tags.discrete_inputs.update(start as usize, &reg_data);
+                                    } ,
+                }
+                }
+                Err(e) => {
+                error!("Failed to parse JSON message: {e}");
+                }
 
-                        }
+            }
                     }
                     Err(e) => error!("Illegal UTF-8 in message from client: {}", e)
 

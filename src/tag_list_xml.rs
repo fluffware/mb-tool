@@ -194,9 +194,9 @@ pub fn parse_encoding(node: &Node) -> Result<Encoding, ParseError> {
 }
 
 pub fn parse_enum(node: &Node) -> Result<IntegerEnum, ParseError> {
-    let label:String = required_attribute(node, "label")?;
+    let label: String = required_attribute(node, "label")?;
     let value = required_attribute::<ParsedU16>(node, "value")?.into();
-    Ok(IntegerEnum{value, label})
+    Ok(IntegerEnum { value, label })
 }
 
 pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
@@ -247,7 +247,7 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
     let encoding = parse_encoding(node)?;
 
     let mut fields = Vec::new();
-     let mut enums = Vec::new();
+    let mut enums = Vec::new();
     for child in node.children() {
         if check_element_ns(&child)? {
             match child.tag_name().name() {
@@ -255,8 +255,8 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
                     let field = parse_register_field(&child)?;
                     fields.push(field);
                 }
-		"enum" => {
-                    let  enu = parse_enum(&child)?;
+                "enum" => {
+                    let enu = parse_enum(&child)?;
                     enums.push(enu);
                 }
                 _ => return Err(ParseError::new(&child, UnexpectedElement)),
@@ -271,7 +271,7 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
         initial_value,
         presentation,
         encoding,
-	enums
+        enums,
     })
 }
 

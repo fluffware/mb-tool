@@ -65,7 +65,7 @@ fn addr_to_string(addr: u16, base_addr: u16) -> String {
     if base_addr == 0 {
         format!("{}", addr)
     } else {
-        format!("{} ({})", addr  + base_addr, addr)
+        format!("{} ({})", addr + base_addr, addr)
     }
 }
 

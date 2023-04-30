@@ -49,8 +49,6 @@ class AreaUpdater {
         for (let v of values) {
             let addr_low = parseInt(v.getAttributeNS(MB_NS, "addr-low"));
             let addr_high = parseInt(v.getAttributeNS(MB_NS, "addr-high"));
-            console.log(addr_low);
-            console.log(addr_high);
             this.value_map.insert(addr_low, addr_high + 1, v);
             let inp = v;
             let mb_values = this.mb_values;
@@ -362,6 +360,7 @@ function setup() {
 
 
     ws.onmessage = (msg) => {
+	console.log(msg);
         let cmd = JSON.parse(msg.data);
         let holding_registers = cmd.UpdateHoldingRegs;
         if (holding_registers) {
@@ -375,8 +374,8 @@ function setup() {
     };
 
     ws.onopen = () => {
-        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 65536 } }))
-        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 65536 } }))
+        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 65535 } }))
+        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 65535 } }))
 
     };
 }
