@@ -32,7 +32,7 @@ tokio-serial = "5.4.4"
 num-traits = "*"
 num-bigint = "0.4"
 webbrowser= {version = "0.8", optional=true}
-
+escaper="0.1.1"
 [patch.crates-io]
 websocket-lite = {git = "https://github.com/1tgr/rust-websocket-lite.git"}
 websocket-codec = {git = "https://github.com/1tgr/rust-websocket-lite.git"}

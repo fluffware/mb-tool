@@ -1,6 +1,7 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
 use crate::tag_list::{IntegerEnum, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange};
+use escaper::encode_minimal as esc;
 use std::fmt::{Result, Write};
 
 #[derive(Clone)]
@@ -71,7 +72,12 @@ fn addr_to_string(addr: u16, base_addr: u16) -> String {
 fn build_enum_field<W: Write>(w: &mut W, enums: &[IntegerEnum], attrs: &str) -> Result {
     write!(w, "<select class=\"mb_value mb_enum\" {attrs}>\n",)?;
     for e in enums {
-	write!(w, "<option value=\"{}\">{}</option>\n", e.value, e.label)?;
+        write!(
+            w,
+            "<option value=\"{}\">{}</option>\n",
+            e.value,
+            esc(&e.label)
+        )?;
     }
     write!(w, "</select>\n",)?;
     Ok(())
@@ -134,7 +140,7 @@ fn build_field<W: Write>(
     }
 
     if let Some(label) = &field.label {
-        write!(w, r#"<span class="field_label">{label}</span>"#)?;
+        write!(w, r#"<span class="field_label">{}</span>"#, esc(&label))?;
     }
     let input_attrs = format!(
         r#"mb:addr-low="{}" mb:addr-high="{}" mb:bit-low="{}" mb:bit-high="{}""#,
@@ -155,7 +161,7 @@ fn build_field<W: Write>(
         )?;
     }
     if !field.enums.is_empty() {
-	build_enum_field(w, &field.enums, &input_attrs)?;
+        build_enum_field(w, &field.enums, &input_attrs)?;
     }
     write!(w, "</li>")?;
 
@@ -178,7 +184,7 @@ fn build_register<W: Write>(w: &mut W, ctxt: &BuildContext, register: &RegisterR
         )?;
     }
     if let Some(label) = &register.label {
-        write!(w, r#"<span class="register_label">{label}</span>"#)?;
+        write!(w, r#"<span class="register_label">{}</span>"#, esc(&label))?;
     }
 
     let input_attrs = format!(
@@ -193,7 +199,7 @@ fn build_register<W: Write>(w: &mut W, ctxt: &BuildContext, register: &RegisterR
         &input_attrs,
     )?;
     if !register.enums.is_empty() {
-	build_enum_field(w, &register.enums, &input_attrs)?;
+        build_enum_field(w, &register.enums, &input_attrs)?;
     }
     if let Some(unit) = &register.presentation.unit {
         write!(w, r#"<span class="unit">{unit}</span>"#)?;
@@ -215,7 +221,7 @@ fn build_group<W: Write>(w: &mut W, ctxt: &BuildContext, group: &RegisterGroup) 
         addr_to_string(group.base_address, ctxt.base_address)
     )?;
     if let Some(label) = &group.label {
-        write!(w, r#"<span class="group_label">{label}</span>"#)?;
+        write!(w, r#"<span class="group_label">{}</span>"#, esc(&label))?;
     }
     let mut ctxt = ctxt.clone();
     ctxt.base_address += group.base_address;
