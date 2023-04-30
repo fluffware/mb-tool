@@ -174,7 +174,8 @@ class AreaUpdater {
     }
 
     update_values(addr, v) {
-        Array.prototype.splice.apply(this.mb_values, [addr, v.length].concat(v));
+	while(addr > this.mb_values.length) this.mb_values.push(0);
+        this.mb_values.splice(addr, v.length, ...v);
         this.update_range(addr, addr + v.length - 1)
     }
 
@@ -182,13 +183,13 @@ class AreaUpdater {
         return ((v >> 8) & 0xff)((v & 0xff) << 8);
     }
     start_int(addr, swap, signed) {
-        let word = this.mb_values[addr];
+        let word = this.mb_values[addr] || 0;
         if (swap) word = swap16(word);
         if (signed && word >= 32768) word -= 65536;
         return BigInt(word);
     }
     acc_int(sum, addr, swap) {
-        let word = this.mb_values[addr];
+        let word = this.mb_values[addr] || 0;
         if (swap) word = swap16(word);
 
         return sum * BigInt(65536) + BigInt(word);
@@ -374,8 +375,8 @@ function setup() {
     };
 
     ws.onopen = () => {
-        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 256 } }))
-        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 256 } }))
+        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 65536 } }))
+        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 65536 } }))
 
     };
 }
