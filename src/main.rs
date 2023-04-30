@@ -3,7 +3,7 @@ use clap::{CommandFactory, FromArgMatches, Parser};
 use log::{debug, error, info};
 use mb_tool::build_main_page;
 use mb_tool::error::DynResult;
-use mb_tool::modbus_connection;
+use mb_tool::modbus_connection::{self, ModbusOptions};
 use mb_tool::observable_array::ObservableArray;
 use mb_tool::tag_list_xml;
 use mb_tool::tag_ranges::TagRanges;
@@ -19,6 +19,7 @@ use std::process::ExitCode;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
+use tokio::time::Duration;
 use tokio_modbus::slave::Slave;
 use tokio_serial::SerialStream;
 
@@ -185,11 +186,9 @@ struct CmdArgs {
     /// HTTP port
     #[arg(long, default_value_t = 0)]
     http_port: u16,
-    /*
-        /// Don't try to start a web browser
-        #[arg(long)]
-        no_browser: bool,
-    */
+    /// Time in milliseconds between client polls
+    #[arg(long, default_value_t = 100)]
+    poll_interval: u64,
 }
 
 #[cfg(feature = "webbrowser")]
@@ -290,13 +289,21 @@ pub async fn main() -> ExitCode {
     let ranges = TagRanges::from(&*tag_list.read().unwrap());
     debug!("Register ranges: {:?}", ranges);
     tokio::spawn(mb_task(tags.clone(), mb_send.clone(), mb_receive));
+    let mb_options = ModbusOptions {
+        poll_interval: Duration::from_millis(args.poll_interval),
+    };
     let join: JoinHandle<DynResult<()>>;
     if args.server {
         if let Some(path) = args.serial_device {
             let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
             match SerialStream::open(&builder) {
                 Ok(ser) => {
-                    join = tokio::spawn(modbus_connection::server_rtu(ser, tags.clone(), ranges));
+                    join = tokio::spawn(modbus_connection::server_rtu(
+                        ser,
+                        tags.clone(),
+                        ranges,
+                        mb_options,
+                    ));
                     info!("Running as RTU server on {}", path);
                 }
                 Err(e) => {
@@ -315,6 +322,7 @@ pub async fn main() -> ExitCode {
             join = tokio::spawn(modbus_connection::server_tcp(
                 SocketAddr::V4(SocketAddrV4::new(addr, port)),
                 tags.clone(),
+                mb_options,
             ));
             info!("Running as TCP server at {}:{}", addr, port);
         }
@@ -328,6 +336,7 @@ pub async fn main() -> ExitCode {
                         Slave(args.mb_address),
                         tags.clone(),
                         ranges,
+			mb_options,
                     ));
                     info!("Running as RTU client on {}", path);
                 }
@@ -349,6 +358,7 @@ pub async fn main() -> ExitCode {
                 Slave(args.mb_address),
                 tags.clone(),
                 ranges,
+		mb_options,
             ));
             info!("Running as TCP client connected to {}:{}", addr, port);
         }

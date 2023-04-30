@@ -176,7 +176,12 @@ impl tokio_modbus::server::NewService for ModbusNewService {
     }
 }
 
-pub async fn server_tcp(socket: SocketAddr, tags: Tags) -> DynResult<()> {
+#[derive(Clone)]
+pub struct ModbusOptions {
+    pub poll_interval: Duration,
+}
+
+pub async fn server_tcp(socket: SocketAddr, tags: Tags, _options: ModbusOptions) -> DynResult<()> {
     let server = TcpServer::new(socket);
     let service = ModbusNewService::new(tags);
     match server.serve(service).await {
@@ -185,7 +190,12 @@ pub async fn server_tcp(socket: SocketAddr, tags: Tags) -> DynResult<()> {
     }
 }
 
-pub async fn server_rtu(ser: SerialStream, tags: Tags, _ranges: TagRanges) -> DynResult<()> {
+pub async fn server_rtu(
+    ser: SerialStream,
+    tags: Tags,
+    _ranges: TagRanges,
+    _options: ModbusOptions,
+) -> DynResult<()> {
     let server = RtuServer::new(ser);
     let service = ModbusNewService::new(tags);
     server.serve_forever(service).await;
@@ -292,7 +302,12 @@ impl ClientOp {
     }
 }
 
-async fn client_poll(client: &mut Context, mut tags: Tags, ranges: TagRanges) -> DynResult<()> {
+async fn client_poll(
+    client: &mut Context,
+    mut tags: Tags,
+    ranges: TagRanges,
+    options: &ModbusOptions,
+) -> DynResult<()> {
     let seq = ClientOp::read_sequence(&ranges);
     let mut iter = seq.iter().cycle();
     loop {
@@ -301,7 +316,7 @@ async fn client_poll(client: &mut Context, mut tags: Tags, ranges: TagRanges) ->
             error!("Failed to read from server: {e}");
         }
         tokio::select! {
-            _res = time::sleep(Duration::from_millis(921)) => (),
+            _res = time::sleep(options.poll_interval) => (),
         changes = tags.holding_registers.updated() => {
         for range in &changes {
                     let start = range.start;
@@ -334,12 +349,18 @@ async fn client_poll(client: &mut Context, mut tags: Tags, ranges: TagRanges) ->
     }
 }
 
-pub async fn client_rtu<T>(ser: T, slave: Slave, tags: Tags, ranges: TagRanges) -> DynResult<()>
+pub async fn client_rtu<T>(
+    ser: T,
+    slave: Slave,
+    tags: Tags,
+    ranges: TagRanges,
+    options: ModbusOptions,
+) -> DynResult<()>
 where
     T: AsyncRead + AsyncWrite + Debug + Unpin + Send + 'static,
 {
     let mut ctxt = rtu::connect_slave(ser, slave).await?;
-    client_poll(&mut ctxt, tags, ranges).await?;
+    client_poll(&mut ctxt, tags, ranges, &options).await?;
     Ok(())
 }
 
@@ -348,8 +369,9 @@ pub async fn client_tcp(
     slave: Slave,
     tags: Tags,
     ranges: TagRanges,
+    options: ModbusOptions,
 ) -> DynResult<()> {
     let mut ctxt = tcp::connect_slave(socket, slave).await?;
-    client_poll(&mut ctxt, tags, ranges).await?;
+    client_poll(&mut ctxt, tags, ranges, &options).await?;
     Ok(())
 }
