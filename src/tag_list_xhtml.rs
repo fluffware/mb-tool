@@ -215,6 +215,9 @@ fn build_register<W: Write>(w: &mut W, ctxt: &BuildContext, register: &RegisterR
 }
 
 fn build_group<W: Write>(w: &mut W, ctxt: &BuildContext, group: &RegisterGroup) -> Result {
+    writeln!(w, "<div class=\"group_block\">")?;
+    writeln!(w, "<div class=\"group_header\">")?;
+    writeln!(w, "<img class=\"group_indicator\" />")?;
     write!(
         w,
         r#"<span class="group_addr">{}</span>"#,
@@ -223,9 +226,13 @@ fn build_group<W: Write>(w: &mut W, ctxt: &BuildContext, group: &RegisterGroup) 
     if let Some(label) = &group.label {
         write!(w, r#"<span class="group_label">{}</span>"#, esc(&label))?;
     }
+    writeln!(w, "</div>")?; // End of header
+    writeln!(w, "<div class=\"group_body\">")?;
     let mut ctxt = ctxt.clone();
     ctxt.base_address += group.base_address;
     build_register_sub_list(w, &ctxt, &group.registers)?;
+    writeln!(w, "</div>")?; // End of body
+    writeln!(w, "</div>")?; // End of block
     Ok(())
 }
 

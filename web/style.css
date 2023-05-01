@@ -12,6 +12,9 @@
     display: inline-block;
 }
 
+.group_indicator {
+    width: 1em;
+}
 
 input.mb_value:focus {
     background: rgb(253, 203, 203);

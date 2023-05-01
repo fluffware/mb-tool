@@ -358,9 +358,26 @@ function setup() {
             ws.send(JSON.stringify({ UpdateInputRegs: data }))
         });
 
-
+    // Collapse groups
+    for (g of document.getElementsByClassName("group_block")) {
+	let header = g.querySelector(".group_header");
+	let indicator = header.querySelector(".group_indicator");
+	indicator.setAttribute("src", "/collapsed.svg");
+	let body =  g.querySelector(".group_body");
+	body.style.display = "none";
+	header.addEventListener("click", function() {
+	     if (body.style.display === "block") {
+	    	 indicator.setAttribute("src", "/collapsed.svg");
+		 body.style.display = "none";
+	     } else {
+	    	 indicator.setAttribute("src", "/expanded.svg");
+		 body.style.display = "block";
+	     }
+	});
+    }
+    
+    // Receive updates
     ws.onmessage = (msg) => {
-	console.log(msg);
         let cmd = JSON.parse(msg.data);
         let holding_registers = cmd.UpdateHoldingRegs;
         if (holding_registers) {
@@ -374,8 +391,10 @@ function setup() {
     };
 
     ws.onopen = () => {
-        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 65535 } }))
-        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 65535 } }))
+        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 32768 } }))
+        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 32768, length: 32768 } }))
+        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 32768 } }))
+        ws.send(JSON.stringify({ RequestInputRegs: { start: 32768, length: 32768 } }))
 
     };
 }
