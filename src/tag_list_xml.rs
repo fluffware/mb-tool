@@ -276,7 +276,9 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
 }
 
 pub fn parse_group(node: &Node) -> Result<RegisterGroup, ParseError> {
-    let base_address = required_attribute::<ParsedU16>(node, "base-addr")?.into();
+    let base_address = optional_attribute::<ParsedU16>(node, "base-addr")?
+        .map(|v| u16::from(v))
+        .unwrap_or(0u16);
     let label: Option<String> = optional_attribute(node, "label")?;
     let registers = parse_registers_or_groups(node)?;
     Ok(RegisterGroup {
