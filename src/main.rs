@@ -11,6 +11,7 @@ use mb_tool::tags::Tags;
 use mb_tool::web_server;
 use roxmltree::Document;
 use serde_derive::{Deserialize, Serialize};
+use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -48,7 +49,7 @@ fn ws_request<T, F>(
     let reply = array.get_array(|r| {
         f(
             start,
-            Vec::from(&r[(start as usize)..((start + length) as usize)]),
+            Vec::from(&r[(start as usize)..(start as usize + length as usize)]),
         )
     });
 
@@ -336,7 +337,7 @@ pub async fn main() -> ExitCode {
                         Slave(args.mb_address),
                         tags.clone(),
                         ranges,
-			mb_options,
+                        mb_options,
                     ));
                     info!("Running as RTU client on {}", path);
                 }
@@ -358,7 +359,7 @@ pub async fn main() -> ExitCode {
                 Slave(args.mb_address),
                 tags.clone(),
                 ranges,
-		mb_options,
+                mb_options,
             ));
             info!("Running as TCP client connected to {}:{}", addr, port);
         }
@@ -367,6 +368,27 @@ pub async fn main() -> ExitCode {
     let conf = web_server::ServerConfig::new(ws_send, mb_send);
     let conf = conf.port(args.http_port);
     let conf = conf.build_page(build_main_page::build_page(tag_list));
+
+    let web_root = env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|p| p.join("web")))
+        .unwrap_or_else(|| PathBuf::from("web"));
+
+    if !web_root.is_dir() {
+        error!(
+            "Web root {} does not exist or is not a directory",
+            web_root.display()
+        );
+        return ExitCode::FAILURE;
+    }
+
+    let conf = conf.web_root(
+        env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|p| p.join("web")))
+            .unwrap_or_else(|| PathBuf::from("web")),
+    );
+
     let (server, bound_port) = web_server::setup_server(conf);
 
     let url = format!("http://127.0.0.1:{}", bound_port);
