@@ -32,9 +32,12 @@
       <register addr="2" label="Reg 2" initial-value="1"/>
       <register addr="3" label="Reg 3" sign="signed" initial-value="-34"/>
     </input-registers>
-    <discrete-inputs/>
+    <discrete-inputs>
+      <bit addr="1" label="Bit 1" initial-value="1"/>
+      <bit addr="8" label="Bit 8" initial-value="0"/>
+    </discrete-inputs>
     <coils>
-        <bit addr="3" label="Bit 3" initial-value="1"/>
-        <bit addr="6" label="Bit 6" initial-value="0"/>
+      <bit addr="3" label="Bit 3" initial-value="1"/>
+      <bit addr="6" label="Bit 6" initial-value="0"/>
     </coils>
 </tag-list>

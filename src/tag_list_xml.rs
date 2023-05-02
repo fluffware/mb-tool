@@ -1,7 +1,7 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
 use crate::tag_list::{
-    Bit, IntegerEnum, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange, TagList,
+    Bit, IntegerEnum, RegisterField, Group, RegisterOrGroup, BitOrGroup, RegisterRange, TagList,
 };
 use roxmltree::{Node, TextPos};
 use std::error::Error;
@@ -275,16 +275,16 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
     })
 }
 
-pub fn parse_group(node: &Node) -> Result<RegisterGroup, ParseError> {
+pub fn parse_group(node: &Node) -> Result<Group<RegisterRange>, ParseError> {
     let base_address = optional_attribute::<ParsedU16>(node, "base-addr")?
         .map(|v| u16::from(v))
         .unwrap_or(0u16);
     let label: Option<String> = optional_attribute(node, "label")?;
-    let registers = parse_registers_or_groups(node)?;
-    Ok(RegisterGroup {
+    let tags = parse_registers_or_groups(node)?;
+    Ok(Group::<RegisterRange> {
         base_address,
         label,
-        registers,
+        tags,
     })
 }
 
@@ -295,11 +295,11 @@ pub fn parse_registers_or_groups(parent: &Node) -> Result<Vec<RegisterOrGroup>, 
             match child.tag_name().name() {
                 "register" => {
                     let reg = parse_register(&child)?;
-                    regs.push(RegisterOrGroup::Register(reg));
+                    regs.push(RegisterOrGroup::Tag(reg));
                 }
                 "register-range" => {
                     let reg = parse_register(&child)?;
-                    regs.push(RegisterOrGroup::Register(reg));
+                    regs.push(RegisterOrGroup::Tag(reg));
                 }
                 "group" => {
                     let reg = parse_group(&child)?;
@@ -358,20 +358,20 @@ impl From<ParsedU16> for u16 {
     }
 }
 
-pub fn parse_bit(node: &Node) -> Result<Bit, ParseError> {
+pub fn parse_bit(node: &Node) -> Result<BitOrGroup, ParseError> {
     let address: u16 = required_attribute::<ParsedU16>(node, "addr")?.into();
     let label: Option<String> = optional_attribute(node, "label")?;
     let initial_value: Option<bool> =
         optional_attribute::<ParsedBit>(node, "initial-value")?.map(|b| b.into());
 
-    Ok(Bit {
+    Ok(BitOrGroup::Tag(Bit {
         address,
         label,
         initial_value,
-    })
+    }))
 }
 
-pub fn parse_bits(parent: &Node) -> Result<Vec<Bit>, ParseError> {
+pub fn parse_bits(parent: &Node) -> Result<Vec<BitOrGroup>, ParseError> {
     let mut bits = Vec::new();
     for child in parent.children() {
         if check_element_ns(&child)? {

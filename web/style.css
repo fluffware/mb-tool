@@ -1,4 +1,4 @@
-.register_addr, .group_addr {
+.register_addr, .group_addr, .bit_addr {
     width: 7em;
     display: inline-block;
 }

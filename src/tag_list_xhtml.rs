@@ -1,6 +1,8 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
-use crate::tag_list::{IntegerEnum, RegisterField, RegisterGroup, RegisterOrGroup, RegisterRange};
+use crate::tag_list::{
+    Bit, BitOrGroup, Group, IntegerEnum, RegisterField, RegisterOrGroup, RegisterRange, TagOrGroup,
+};
 use escaper::encode_minimal as esc;
 use std::fmt::{Result, Write};
 
@@ -168,53 +170,85 @@ fn build_field<W: Write>(
     Ok(())
 }
 
-fn build_register<W: Write>(w: &mut W, ctxt: &BuildContext, register: &RegisterRange) -> Result {
-    if register.address_low == register.address_high {
-        write!(
-            w,
-            r#"<span class="register_addr">{}</span>"#,
-            addr_to_string(register.address_low, ctxt.base_address)
-        )?;
-    } else {
-        write!(
-            w,
-            r#"<span class="register_addr">{} - {}</span>"#,
-            addr_to_string(register.address_low, ctxt.base_address),
-            addr_to_string(register.address_high, ctxt.base_address),
-        )?;
-    }
-    if let Some(label) = &register.label {
-        write!(w, r#"<span class="register_label">{}</span>"#, esc(&label))?;
-    }
-
-    let input_attrs = format!(
-        r#"mb:addr-low="{}"  mb:addr-high="{}""#,
-        register.address_low + ctxt.base_address,
-        register.address_high + ctxt.base_address,
-    );
-    build_input_field(
-        w,
-        &register.presentation,
-        Some(&register.encoding),
-        &input_attrs,
-    )?;
-    if !register.enums.is_empty() {
-        build_enum_field(w, &register.enums, &input_attrs)?;
-    }
-    if let Some(unit) = &register.presentation.unit {
-        write!(w, r#"<span class="unit">{unit}</span>"#)?;
-    }
-    if !register.fields.is_empty() {
-        write!(w, r#"<ul class="field_list">"#)?;
-        for f in &register.fields {
-            build_field(w, ctxt, f, register)?;
-        }
-        write!(w, r#"</ul>"#)?;
-    }
-    Ok(())
+trait BuildTag<W>
+where
+    W: Write,
+{
+    fn build_tag(&self, w: &mut W, ctxt: &BuildContext) -> Result;
 }
 
-fn build_group<W: Write>(w: &mut W, ctxt: &BuildContext, group: &RegisterGroup) -> Result {
+impl<W> BuildTag<W> for RegisterRange
+where
+    W: Write,
+{
+    fn build_tag(&self, w: &mut W, ctxt: &BuildContext) -> Result {
+        if self.address_low == self.address_high {
+            write!(
+                w,
+                r#"<span class="register_addr">{}</span>"#,
+                addr_to_string(self.address_low, ctxt.base_address)
+            )?;
+        } else {
+            write!(
+                w,
+                r#"<span class="register_addr">{} - {}</span>"#,
+                addr_to_string(self.address_low, ctxt.base_address),
+                addr_to_string(self.address_high, ctxt.base_address),
+            )?;
+        }
+        if let Some(label) = &self.label {
+            write!(w, r#"<span class="register_label">{}</span>"#, esc(&label))?;
+        }
+
+        let input_attrs = format!(
+            r#"mb:addr-low="{}"  mb:addr-high="{}""#,
+            self.address_low + ctxt.base_address,
+            self.address_high + ctxt.base_address,
+        );
+        build_input_field(w, &self.presentation, Some(&self.encoding), &input_attrs)?;
+        if !self.enums.is_empty() {
+            build_enum_field(w, &self.enums, &input_attrs)?;
+        }
+        if let Some(unit) = &self.presentation.unit {
+            write!(w, r#"<span class="unit">{unit}</span>"#)?;
+        }
+        if !self.fields.is_empty() {
+            write!(w, r#"<ul class="field_list">"#)?;
+            for f in &self.fields {
+                build_field(w, ctxt, f, self)?;
+            }
+            write!(w, r#"</ul>"#)?;
+        }
+        Ok(())
+    }
+}
+
+impl<W> BuildTag<W> for Bit
+where
+    W: Write,
+{
+    fn build_tag(&self, w: &mut W, ctxt: &BuildContext) -> Result {
+        write!(
+            w,
+            r#"<span class="bit_addr">{}</span>"#,
+            addr_to_string(self.address, ctxt.base_address)
+        )?;
+        if let Some(label) = &self.label {
+            write!(w, r#"<span class="bit_label">{}</span>"#, esc(&label))?;
+        }
+        write!(
+            w,
+            r#"<input type="checkbox" class="mb_value" mb:addr="{}"/>"#,
+            self.address + ctxt.base_address,
+        )?;
+        Ok(())
+    }
+}
+
+fn build_group<W: Write, T>(w: &mut W, ctxt: &BuildContext, group: &Group<T>) -> Result
+where
+    T: BuildTag<W>,
+{
     writeln!(w, "<div class=\"group_block\">")?;
     writeln!(w, "<div class=\"group_header\">")?;
     writeln!(w, "<img class=\"group_indicator\" />")?;
@@ -230,27 +264,26 @@ fn build_group<W: Write>(w: &mut W, ctxt: &BuildContext, group: &RegisterGroup) 
     writeln!(w, "<div class=\"group_body\">")?;
     let mut ctxt = ctxt.clone();
     ctxt.base_address += group.base_address;
-    build_register_sub_list(w, &ctxt, &group.registers)?;
+    build_sub_list(w, &ctxt, &group.tags)?;
     writeln!(w, "</div>")?; // End of body
     writeln!(w, "</div>")?; // End of block
     Ok(())
 }
 
-fn build_register_sub_list<W: Write>(
-    w: &mut W,
-    ctxt: &BuildContext,
-    registers: &Vec<RegisterOrGroup>,
-) -> Result {
-    write!(w, r#"<ul class="register_list">"#)?;
-    for r in registers {
-        match r {
-            RegisterOrGroup::Register(r) => {
-                write!(w, r#"<li class="register_item">"#)?;
-                build_register(w, ctxt, r)?;
+fn build_sub_list<W: Write, T>(w: &mut W, ctxt: &BuildContext, tags: &Vec<TagOrGroup<T>>) -> Result
+where
+    T: BuildTag<W>,
+{
+    write!(w, r#"<ul class="tag_list">"#)?;
+    for t in tags {
+        match t {
+            TagOrGroup::<T>::Tag(t) => {
+                write!(w, r#"<li class="tag_item">"#)?;
+                t.build_tag(w, ctxt)?;
                 write!(w, "</li>")?;
             }
-            RegisterOrGroup::Group(g) => {
-                write!(w, r#"<li class="register_group">"#)?;
+            TagOrGroup::<T>::Group(g) => {
+                write!(w, r#"<li class="tag_group">"#)?;
                 build_group(w, ctxt, g)?;
                 write!(w, "</li>")?;
             }
@@ -260,7 +293,12 @@ fn build_register_sub_list<W: Write>(
     Ok(())
 }
 
-pub fn build_register_list<W: Write>(w: &mut W, registers: &Vec<RegisterOrGroup>) -> Result {
+pub fn build_register_list<W: Write>(w: &mut W, tags: &Vec<RegisterOrGroup>) -> Result {
     let ctxt = BuildContext { base_address: 0 };
-    build_register_sub_list(w, &ctxt, registers)
+    build_sub_list(w, &ctxt, tags)
+}
+
+pub fn build_bit_list<W: Write>(w: &mut W, tags: &Vec<BitOrGroup>) -> Result {
+    let ctxt = BuildContext { base_address: 0 };
+    build_sub_list(w, &ctxt, tags)
 }
