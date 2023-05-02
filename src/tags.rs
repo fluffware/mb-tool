@@ -1,7 +1,7 @@
 use crate::observable_array::ObservableArray;
 use crate::register_value;
-use crate::tag_list::RegisterSequence;
 use crate::tag_list::TagList;
+use crate::tag_list::TagSequence;
 use log::error;
 
 #[derive(Clone)]
@@ -19,7 +19,7 @@ impl Tags {
         let discrete_inputs = ObservableArray::new(65536);
         let coils = ObservableArray::new(65536);
 
-        for (reg, ctxt) in init.holding_registers.register_iter() {
+        for (reg, ctxt) in init.holding_registers.tag_iter() {
             if let Some(value_str) = reg.initial_value.as_ref() {
                 match register_value::parse(reg, &value_str) {
                     Ok(v) => {
@@ -32,7 +32,7 @@ impl Tags {
                 }
             }
         }
-        for (reg, ctxt) in init.input_registers.register_iter() {
+        for (reg, ctxt) in init.input_registers.tag_iter() {
             if let Some(value_str) = reg.initial_value.as_ref() {
                 match register_value::parse(reg, &value_str) {
                     Ok(v) => {
@@ -46,11 +46,17 @@ impl Tags {
             }
         }
 
-        for bit in &init.coils {
-            coils.update(bit.address as usize, &[bit.initial_value.unwrap_or(false)]);
+        for (bit, ctxt) in init.coils.tag_iter() {
+            coils.update(
+                (bit.address + ctxt.base_address) as usize,
+                &[bit.initial_value.unwrap_or(false)],
+            );
         }
-        for bit in &init.discrete_inputs {
-            discrete_inputs.update(bit.address as usize, &[bit.initial_value.unwrap_or(false)]);
+        for (bit, ctxt) in init.discrete_inputs.tag_iter() {
+            discrete_inputs.update(
+                (bit.address + ctxt.base_address) as usize,
+                &[bit.initial_value.unwrap_or(false)],
+            );
         }
 
         Tags {

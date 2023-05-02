@@ -28,44 +28,40 @@ pub struct RegisterField {
     pub enums: Vec<IntegerEnum>, // Enumerated values for this register
 }
 
-pub struct RegisterGroup {
+pub struct Group<T> {
     pub base_address: u16, // Register addresses in this group are offset by this amount
     pub label: Option<String>,
-    pub registers: Vec<RegisterOrGroup>,
+    pub tags: Vec<TagOrGroup<T>>,
 }
 
-pub enum RegisterOrGroup {
-    Register(RegisterRange),
-    Group(RegisterGroup),
-}
-
-/// Contains inherited values that may affect the register
+/// Contains inherited values that may affect the tag
 #[derive(Clone)]
-pub struct RegisterContext {
+pub struct TagContext {
     pub base_address: u16,
 }
 
-pub trait RegisterSequence<'a, I>
+pub trait TagSequence<'a, I, T>
 where
-    I: Iterator<Item = (&'a RegisterRange, RegisterContext)>,
+    I: Iterator<Item = (&'a T, TagContext)>,
+    T: 'a,
 {
-    fn register_iter(&'a self) -> I;
+    fn tag_iter(&'a self) -> I;
 }
 
-pub struct RegisterIter<'a> {
-    pos: Vec<(std::slice::Iter<'a, RegisterOrGroup>, RegisterContext)>,
+pub struct TagIter<'a, T> {
+    pos: Vec<(std::slice::Iter<'a, TagOrGroup<T>>, TagContext)>,
 }
 
-impl<'a> Iterator for RegisterIter<'a> {
-    type Item = (&'a RegisterRange, RegisterContext);
+impl<'a, T> Iterator for TagIter<'a, T> {
+    type Item = (&'a T, TagContext);
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((ri, ctxt)) = self.pos.last_mut() {
             match ri.next() {
-                Some(RegisterOrGroup::Register(r)) => return Some((r, ctxt.clone())),
-                Some(RegisterOrGroup::Group(g)) => {
+                Some(TagOrGroup::<T>::Tag(r)) => return Some((r, ctxt.clone())),
+                Some(TagOrGroup::<T>::Group(g)) => {
                     let mut ctxt = ctxt.clone();
                     ctxt.base_address += g.base_address;
-                    self.pos.push((g.registers.iter(), ctxt));
+                    self.pos.push((g.tags.iter(), ctxt));
                 }
                 None => {
                     self.pos.pop();
@@ -76,10 +72,10 @@ impl<'a> Iterator for RegisterIter<'a> {
     }
 }
 
-impl<'a> RegisterSequence<'a, RegisterIter<'a>> for Vec<RegisterOrGroup> {
-    fn register_iter(&'a self) -> RegisterIter<'a> {
-        RegisterIter {
-            pos: vec![(self.iter(), RegisterContext { base_address: 0 })],
+impl<'a, T> TagSequence<'a, TagIter<'a, T>, T> for Vec<TagOrGroup<T>> {
+    fn tag_iter(&'a self) -> TagIter<'a, T> {
+        TagIter {
+            pos: vec![(self.iter(), TagContext { base_address: 0 })],
         }
     }
 }
@@ -89,9 +85,24 @@ pub struct Bit {
     pub label: Option<String>,
     pub initial_value: Option<bool>,
 }
+
+pub struct BitGroup {
+    pub base_address: u16, // Register addresses in this group are offset by this amount
+    pub label: Option<String>,
+    pub bitss: Vec<BitOrGroup>,
+}
+
+pub enum TagOrGroup<T> {
+    Tag(T),
+    Group(Group<T>),
+}
+
+pub type RegisterOrGroup = TagOrGroup<RegisterRange>;
+pub type BitOrGroup = TagOrGroup<Bit>;
+
 pub struct TagList {
     pub input_registers: Vec<RegisterOrGroup>,
     pub holding_registers: Vec<RegisterOrGroup>,
-    pub discrete_inputs: Vec<Bit>,
-    pub coils: Vec<Bit>,
+    pub discrete_inputs: Vec<BitOrGroup>,
+    pub coils: Vec<BitOrGroup>,
 }

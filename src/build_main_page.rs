@@ -46,8 +46,18 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
         tag_list_xhtml::build_register_list(&mut w, &tag_list.input_registers)?;
         writeln!(w, "\n</div>")?;
 
-        writeln!(w, "</body></xhtml>")?;
+	writeln!(w, "<h2>Coils</h2>")?;
+        writeln!(w, "<div id=\"coils\">")?;
+        tag_list_xhtml::build_bit_list(&mut w, &tag_list.coils)?;
+        writeln!(w, "\n</div>")?;
+	
+	writeln!(w, "<h2>Discrete inputs</h2>")?;
+        writeln!(w, "<div id=\"discrete_inputs\">")?;
+        tag_list_xhtml::build_bit_list(&mut w, &tag_list.discrete_inputs)?;
+        writeln!(w, "\n</div>")?;
 
+        writeln!(w, "</body></xhtml>")?;
+	
         let resp = Response::builder()
             .header("Content-Type", "application/xhtml+xml")
             .status(StatusCode::OK);
