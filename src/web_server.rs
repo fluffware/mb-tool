@@ -45,6 +45,11 @@ impl ServerConfig {
         self.port = Some(p);
         self
     }
+    pub fn bind_addr(mut self, a: IpAddr) -> Self {
+        self.bind_addr = Some(a);
+        self
+    }
+
     pub fn build_page(mut self, f: BuildPage) -> Self {
         self.build_page = f;
         self
@@ -141,7 +146,9 @@ async fn handle(conf: Arc<Mutex<ServerConfig>>, req: Request<Body>) -> DynResult
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
     }
 }
-pub fn setup_server(conf: ServerConfig) -> (impl Future<Output = Result<(), hyper::Error>>, u16) {
+pub fn setup_server(
+    conf: ServerConfig,
+) -> (impl Future<Output = Result<(), hyper::Error>>, IpAddr, u16) {
     let port = conf.port.unwrap_or(0);
     let bind_addr = conf
         .bind_addr
@@ -154,5 +161,6 @@ pub fn setup_server(conf: ServerConfig) -> (impl Future<Output = Result<(), hype
     });
     let server = Server::bind(&socket_addr).serve(make_service);
     let port = server.local_addr().port();
-    (server, port)
+    let addr = server.local_addr().ip();
+    (server, addr, port)
 }
