@@ -14,6 +14,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::net::IpAddr;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -184,6 +185,9 @@ struct CmdArgs {
     /// Baud rate of serial port
     #[arg(long)]
     baud_rate: Option<u32>,
+    /// Bind HTTP-server to this address
+    #[arg(long)]
+    http_address: Option<Ipv4Addr>,
     /// HTTP port
     #[arg(long, default_value_t = 0)]
     http_port: u16,
@@ -365,8 +369,11 @@ pub async fn main() -> ExitCode {
         }
     }
 
-    let conf = web_server::ServerConfig::new(ws_send, mb_send);
-    let conf = conf.port(args.http_port);
+    let mut conf = web_server::ServerConfig::new(ws_send, mb_send);
+    if let Some(bind) = args.http_address {
+        conf = conf.bind_addr(IpAddr::V4(bind));
+    }
+    conf = conf.port(args.http_port);
     let conf = conf.build_page(build_main_page::build_page(tag_list));
 
     let web_root = env::current_exe()
@@ -389,9 +396,9 @@ pub async fn main() -> ExitCode {
             .unwrap_or_else(|| PathBuf::from("web")),
     );
 
-    let (server, bound_port) = web_server::setup_server(conf);
+    let (server, bound_ip, bound_port) = web_server::setup_server(conf);
 
-    let url = format!("http://127.0.0.1:{}", bound_port);
+    let url = format!("http://{}:{}", bound_ip, bound_port);
     let browser_start = browser::start(&matches, &url);
 
     tokio::select! {
