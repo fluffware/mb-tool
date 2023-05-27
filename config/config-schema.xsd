@@ -9,9 +9,8 @@
       <xs:sequence>
         <xs:element name="holding-registers" type="registers_or_groups" />
         <xs:element name="input-registers" type="registers_or_groups" />
-        <xs:element name="discrete-inputs" />
-        <xs:element name="coils" />
-
+        <xs:element name="discrete-inputs" type="bits_or_groups"/>
+        <xs:element name="coils" type="bits_or_groups"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -44,7 +43,7 @@
              <xs:complexContent>
 	       <xs:extension base="registers_or_groups">
 		 <xs:attribute name="label" type="xs:string" use="optional" />
-		 <xs:attribute name="base-addr" type="xs:integer" use="required" />
+		 <xs:attribute name="base-addr" type="xs:integer" use="optional" />
 	       </xs:extension>
 	     </xs:complexContent>
 	   </xs:complexType>
@@ -128,4 +127,36 @@
     <xs:attribute name="label" type="xs:string" />
     <xs:attribute name="value" type="xs:integer" />
   </xs:complexType>
+  
+  <xs:complexType name="bit_attrs">
+    <xs:attribute name="label" type="xs:string" use="optional" />
+    <xs:attribute name="initial-value" type="xs:string" use="optional" />
+  </xs:complexType>
+  
+  <xs:complexType name="bits_or_groups">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded"> 
+        <xs:element name="bit">
+          <xs:complexType>
+            <xs:complexContent>
+              <xs:extension base="bit_attrs">
+                <xs:attribute name="addr" type="xs:integer" use="required" />
+              </xs:extension>
+            </xs:complexContent>
+          </xs:complexType>
+        </xs:element>
+	<xs:element name="group">
+	   <xs:complexType>
+             <xs:complexContent>
+	       <xs:extension base="bits_or_groups">
+		 <xs:attribute name="label" type="xs:string" use="optional" />
+		 <xs:attribute name="base-addr" type="xs:integer" use="optional" />
+	       </xs:extension>
+	     </xs:complexContent>
+	   </xs:complexType>
+	</xs:element>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
 </xs:schema>

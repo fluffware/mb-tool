@@ -67,8 +67,8 @@ impl From<&TagList> for TagRanges {
             &tag_list.holding_registers,
         );
 
-	get_bit_ranges(&mut ranges.discrete_inputs, 0, &tag_list.discrete_inputs);
-	get_bit_ranges(&mut ranges.coils, 0, &tag_list.coils);
+        get_bit_ranges(&mut ranges.discrete_inputs, 0, &tag_list.discrete_inputs);
+        get_bit_ranges(&mut ranges.coils, 0, &tag_list.coils);
 
         ranges
     }
