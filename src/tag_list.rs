@@ -86,12 +86,6 @@ pub struct Bit {
     pub initial_value: Option<bool>,
 }
 
-pub struct BitGroup {
-    pub base_address: u16, // Register addresses in this group are offset by this amount
-    pub label: Option<String>,
-    pub bitss: Vec<BitOrGroup>,
-}
-
 pub enum TagOrGroup<T> {
     Tag(T),
     Group(Group<T>),

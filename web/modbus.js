@@ -33,7 +33,7 @@ function u32_to_u16_swapped(u32, swap_bytes, low_word_first) {
 
     return words;
 }
-class AreaUpdater {
+class RegisterAreaUpdater {
     value_map = new RangeDict();
     mb_values = [];
     focusedElement = null;
@@ -329,6 +329,66 @@ class AreaUpdater {
     }
 }
 
+class BitAreaUpdater {
+    value_map = new RangeDict();
+    mb_values = [];
+    focusedElement = null;
+
+    constructor(parent, send) {
+        this.send = send;
+
+        var values = parent.getElementsByClassName("mb_value");
+        for (let v of values) {
+            let addr = parseInt(v.getAttributeNS(MB_NS, "addr"));
+            this.value_map.insert(addr, addr + 1, v);
+            let inp = v;
+            let mb_values = this.mb_values;
+            let updater = this;
+            v.addEventListener("change", function (e) {
+                if (inp.type == "checkbox") {
+                    mb_values[addr] = e.target.checked;
+                }                
+                updater.send({
+                    start: addr,
+                    regs: mb_values.slice(addr, addr + 1)
+                });
+                updater.update_range(addr, addr+1);
+            });
+            v.addEventListener("focus", function (e) {
+                updater.focusedElement = inp;
+            });
+            v.addEventListener("blur", function (e) {
+                updater.focusedElement = null;
+                updater.update_range(addr, addr+1);
+            });
+
+        }
+    }
+
+    update_values(addr, v) {
+	while(addr > this.mb_values.length) this.mb_values.push(0);
+        this.mb_values.splice(addr, v.length, ...v);
+        this.update_range(addr, addr + v.length - 1)
+    }
+
+ 
+    update_range(addr_low, addr_high) {
+        let updates = this.value_map.overlapping(addr_low, addr_high + 1);
+
+        for (let update of updates) {
+            let inp = update.value;
+            if (!(inp === this.focusedElement)) {
+                let addr= parseInt(inp.getAttributeNS(MB_NS, "addr"));
+                if (inp.localName == "input") {
+                    if (inp.type == "checkbox") {
+                        inp.checked = Number(this.mb_values[addr]);
+                    }
+		}
+            }
+        }
+    }
+}
+
 
 function socket_uri() {
     var loc = window.location,
@@ -346,17 +406,46 @@ const MB_NS = "http://www.elektro-kapsel.se/xml/mb-tool";
 
 function setup() {
     ws = new WebSocket(socket_uri());
+    
     var holding_regs_elems = document.getElementById("holding_registers");
-    let holding_regs = new AreaUpdater(holding_regs_elems,
-        function (data) {
-            ws.send(JSON.stringify({ UpdateHoldingRegs: data }))
-        });
-
+    let holding_regs = null;
+    if (holding_regs_elems) {
+	holding_regs = new RegisterAreaUpdater(
+	    holding_regs_elems,
+	    function (data) {
+		ws.send(JSON.stringify({ UpdateHoldingRegs: data }))
+	    });
+    }
+    
     var input_regs_elems = document.getElementById("input_registers");
-    let input_regs = new AreaUpdater(input_regs_elems,
-        function (data) {
-            ws.send(JSON.stringify({ UpdateInputRegs: data }))
-        });
+    let input_regs = null;
+    if (input_regs_elems) {
+	input_regs = new RegisterAreaUpdater(
+	    input_regs_elems,
+	    function (data) {
+		ws.send(JSON.stringify({ UpdateInputRegs: data }))
+            });
+    }
+    
+    var coils_elems = document.getElementById("coils");
+    let coils = null;
+    if (coils_elems) {
+	coils = new BitAreaUpdater(
+	    coils_elems,
+	    function (data) {
+		ws.send(JSON.stringify({ UpdateCoils: data }))
+	    });
+    }
+    
+    var discrete_inputs_elems = document.getElementById("discrete_inputs");
+    let discrete_inputs = null;
+    if (discrete_inputs_elems) {
+	discrete_inputs = new BitAreaUpdater(
+	    discrete_inputs_elems,
+	    function (data) {
+		ws.send(JSON.stringify({ UpdateDiscreteInputs: data }))
+	    });
+    }
 
     // Collapse groups
     for (g of document.getElementsByClassName("group_block")) {
@@ -380,14 +469,21 @@ function setup() {
     ws.onmessage = (msg) => {
         let cmd = JSON.parse(msg.data);
         let holding_registers = cmd.UpdateHoldingRegs;
-        if (holding_registers) {
+        if (holding_registers && holding_regs) {
             holding_regs.update_values(holding_registers.start, holding_registers.regs);
         }
         let input_registers = cmd.UpdateInputRegs;
-        if (input_registers) {
+        if (input_registers && input_regs) {
             input_regs.update_values(input_registers.start, input_registers.regs);
         }
-
+	let update_coils = cmd.UpdateCoils;
+        if (update_coils && coils) {
+            coils.update_values(update_coils.start, update_coils.regs);
+        }
+	let update_discrete_inputs = cmd.UpdateDiscreteInputs;
+        if (update_discrete_inputs && discrete_inputs) {
+            discrete_inputs.update_values(update_discrete_inputs.start, update_discrete_inputs.regs);
+        }
     };
 
     ws.onopen = () => {
@@ -396,5 +492,10 @@ function setup() {
         ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 32768 } }))
         ws.send(JSON.stringify({ RequestInputRegs: { start: 32768, length: 32768 } }))
 
+	ws.send(JSON.stringify({ RequestCoils: { start: 0, length: 32768 } }))
+        ws.send(JSON.stringify({ RequestCoils: { start: 32768, length: 32768 } }))
+	
+	ws.send(JSON.stringify({ RequestDiscreteInputs: { start: 0, length: 32768 } }))
+        ws.send(JSON.stringify({ RequestDiscreteInputs: { start: 32768, length: 32768 } }))
     };
 }

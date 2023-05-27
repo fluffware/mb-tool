@@ -36,28 +36,32 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
             .read()
             .map_err(|_| "Failed to get read lock for tag list")?;
 
-        writeln!(w, "<h2>Holding registers</h2>")?;
-        writeln!(w, "<div id=\"holding_registers\">")?;
-        tag_list_xhtml::build_register_list(&mut w, &tag_list.holding_registers)?;
-        writeln!(w, "\n</div>")?;
-
-        writeln!(w, "<h2>Input registers</h2>")?;
-        writeln!(w, "<div id=\"input_registers\">")?;
-        tag_list_xhtml::build_register_list(&mut w, &tag_list.input_registers)?;
-        writeln!(w, "\n</div>")?;
-
-	writeln!(w, "<h2>Coils</h2>")?;
-        writeln!(w, "<div id=\"coils\">")?;
-        tag_list_xhtml::build_bit_list(&mut w, &tag_list.coils)?;
-        writeln!(w, "\n</div>")?;
-	
-	writeln!(w, "<h2>Discrete inputs</h2>")?;
-        writeln!(w, "<div id=\"discrete_inputs\">")?;
-        tag_list_xhtml::build_bit_list(&mut w, &tag_list.discrete_inputs)?;
-        writeln!(w, "\n</div>")?;
-
+        if !tag_list.holding_registers.is_empty() {
+            writeln!(w, "<h2>Holding registers</h2>")?;
+            writeln!(w, "<div id=\"holding_registers\">")?;
+            tag_list_xhtml::build_register_list(&mut w, &tag_list.holding_registers)?;
+            writeln!(w, "\n</div>")?;
+        }
+        if !tag_list.input_registers.is_empty() {
+            writeln!(w, "<h2>Input registers</h2>")?;
+            writeln!(w, "<div id=\"input_registers\">")?;
+            tag_list_xhtml::build_register_list(&mut w, &tag_list.input_registers)?;
+            writeln!(w, "\n</div>")?;
+        }
+        if !tag_list.coils.is_empty() {
+            writeln!(w, "<h2>Coils</h2>")?;
+            writeln!(w, "<div id=\"coils\">")?;
+            tag_list_xhtml::build_bit_list(&mut w, &tag_list.coils)?;
+            writeln!(w, "\n</div>")?;
+        }
+        if !tag_list.discrete_inputs.is_empty() {
+            writeln!(w, "<h2>Discrete inputs</h2>")?;
+            writeln!(w, "<div id=\"discrete_inputs\">")?;
+            tag_list_xhtml::build_bit_list(&mut w, &tag_list.discrete_inputs)?;
+            writeln!(w, "\n</div>")?;
+        }
         writeln!(w, "</body></xhtml>")?;
-	
+
         let resp = Response::builder()
             .header("Content-Type", "application/xhtml+xml")
             .status(StatusCode::OK);

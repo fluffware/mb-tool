@@ -147,12 +147,36 @@ async fn mb_task(
                     let _ = mb_send.send(bytes);
                 }
             },
-         updated = tags.input_registers.updated() =>
+            updated = tags.input_registers.updated() =>
             {
                 for range in &updated {
                     let cmd =
                         tags.input_registers.get_array(|r| {
                             MbCommands::UpdateInputRegs{start:range.start as u16, regs: Vec::from(&r[range.start .. range.end])}
+                        });
+
+                    let bytes = Bytes::from(serde_json::to_string(&cmd).unwrap());
+                    let _ = mb_send.send(bytes);
+                }
+            }
+        updated = tags.coils.updated() =>
+            {
+                for range in &updated {
+                    let cmd =
+                        tags.coils.get_array(|r| {
+                            MbCommands::UpdateCoils{start:range.start as u16, regs: Vec::from(&r[range.start .. range.end])}
+                        });
+
+                    let bytes = Bytes::from(serde_json::to_string(&cmd).unwrap());
+                    let _ = mb_send.send(bytes);
+                }
+            }
+        updated = tags.discrete_inputs.updated() =>
+            {
+                for range in &updated {
+                    let cmd =
+                        tags.discrete_inputs.get_array(|r| {
+                            MbCommands::UpdateDiscreteInputs{start:range.start as u16, regs: Vec::from(&r[range.start .. range.end])}
                         });
 
                     let bytes = Bytes::from(serde_json::to_string(&cmd).unwrap());

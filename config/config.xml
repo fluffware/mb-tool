@@ -30,14 +30,25 @@
     </holding-registers>
     <input-registers>
       <register addr="2" label="Reg 2" initial-value="1"/>
-      <register addr="3" label="Reg 3" sign="signed" initial-value="-34"/>
+      <group label="Group">
+	<register addr="3" label="Reg 3" sign="signed" initial-value="-34"/>
+      </group>
     </input-registers>
     <discrete-inputs>
+       <group label="Group 1">
+	 <bit addr="0" label="Bit 0" initial-value="1"/>
+	 <bit addr="2" label="Bit 2" initial-value="0"/>
+       </group>
       <bit addr="1" label="Bit 1" initial-value="1"/>
       <bit addr="8" label="Bit 8" initial-value="0"/>
     </discrete-inputs>
     <coils>
       <bit addr="3" label="Bit 3" initial-value="1"/>
       <bit addr="6" label="Bit 6" initial-value="0"/>
+      <group label="Group 1">
+	<bit addr="0" label="Bit 0" initial-value="1"/>
+	<bit addr="1" label="Bit 1" initial-value="0"/>
+	<bit addr="2" label="Bit 2" initial-value="0"/>
+      </group>
     </coils>
 </tag-list>
