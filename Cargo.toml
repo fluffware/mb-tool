@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 default = ["webbrowser"]
+openssl_vendored = ["openssl/vendored"] # Try if cross compiling fails to link openssl-sys
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -33,6 +34,8 @@ num-traits = "*"
 num-bigint = "0.4"
 webbrowser= {version = "0.8", optional=true}
 escaper="0.1.1"
+openssl={version="*"}
+
 [patch.crates-io]
 websocket-lite = {git = "https://github.com/1tgr/rust-websocket-lite.git"}
 websocket-codec = {git = "https://github.com/1tgr/rust-websocket-lite.git"}
