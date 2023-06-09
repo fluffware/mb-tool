@@ -1,0 +1,25 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<xhtml xmlns="http://www.w3.org/1999/xhtml" xmlns:mb="http://www.elektro-kapsel.se/xml/mb-tool">
+  <head>
+    <link rel="stylesheet" href="/style.css" type="text/css" />
+    <script src="/range_dict.js"/>
+    <script src="/modbus.js"/>
+  </head>
+  <body onload="setup()">
+    {{#with holding_registers}}
+    <h2>Holding registers</h2>
+    <div id="holding_registers">
+      {{> item_list}}
+    </div>
+    {{/with}}
+    <h2>Input registers</h2>
+    <div id="input_registers">
+    </div>
+    <h2>Coils</h2>
+    <div id="coils">
+    </div>
+    <h2>Discrete inputs</h2>
+    <div id="discrete_inputs">
+    </div>
+  </body>
+</xhtml>
