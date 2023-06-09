@@ -446,6 +446,11 @@ function setup() {
 		ws.send(JSON.stringify({ UpdateDiscreteInputs: data }))
 	    });
     }
+    let echo_count = 0;
+    setInterval(function() {
+	ws.send(JSON.stringify({Echo: echo_count}));
+	echo_count++;
+    }, 1000);
 
     // Collapse groups
     for (g of document.getElementsByClassName("group_block")) {
@@ -464,6 +469,7 @@ function setup() {
 	     }
 	});
     }
+    let heart_beat = document.getElementById("heart_beat");
     
     // Receive updates
     ws.onmessage = (msg) => {
@@ -484,6 +490,16 @@ function setup() {
         if (update_discrete_inputs && discrete_inputs) {
             discrete_inputs.update_values(update_discrete_inputs.start, update_discrete_inputs.regs);
         }
+
+	let echo_reply = cmd.Echo;
+	if (echo_reply != null) {
+	    if (heart_beat) {
+		heart_beat.classList.add("pulse");
+		setTimeout(function () {
+		    heart_beat.classList.add("remove");
+		}, 500);
+	    }
+	}
     };
 
     ws.onopen = () => {

@@ -1,13 +1,13 @@
 use bytes::Bytes;
 use clap::{CommandFactory, FromArgMatches, Parser};
 use log::{debug, error, info};
-use mb_tool::build_main_page;
 use mb_tool::error::DynResult;
 use mb_tool::modbus_connection::{self, ModbusOptions};
 use mb_tool::observable_array::ObservableArray;
 use mb_tool::tag_list_xml;
 use mb_tool::tag_ranges::TagRanges;
 use mb_tool::tags::Tags;
+use mb_tool::template;
 use mb_tool::web_server;
 use roxmltree::Document;
 use serde_derive::{Deserialize, Serialize};
@@ -35,6 +35,7 @@ enum MbCommands {
     RequestInputRegs { start: u16, length: u16 },
     RequestDiscreteInputs { start: u16, length: u16 },
     RequestCoils { start: u16, length: u16 },
+    Echo(i64),
 }
 
 fn ws_request<T, F>(
@@ -123,6 +124,12 @@ async fn mb_task(
                                     MbCommands::UpdateDiscreteInputs{start, regs: reg_data} => {
                     tags.discrete_inputs.update(start as usize, &reg_data);
                                     } ,
+
+                    MbCommands::Echo(count) => {
+                        let reply = MbCommands::Echo(count);
+                        let bytes = Bytes::from(serde_json::to_string(&reply).unwrap());
+                        let _ = mb_send.send(bytes);
+                    }
                 }
                 }
                 Err(e) => {
@@ -393,13 +400,6 @@ pub async fn main() -> ExitCode {
         }
     }
 
-    let mut conf = web_server::ServerConfig::new(ws_send, mb_send);
-    if let Some(bind) = args.http_address {
-        conf = conf.bind_addr(IpAddr::V4(bind));
-    }
-    conf = conf.port(args.http_port);
-    let conf = conf.build_page(build_main_page::build_page(tag_list));
-
     let web_root = env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|p| p.join("web")))
@@ -412,6 +412,19 @@ pub async fn main() -> ExitCode {
         );
         return ExitCode::FAILURE;
     }
+    let mut conf = web_server::ServerConfig::new(ws_send, mb_send);
+
+    if let Some(bind) = args.http_address {
+        conf = conf.bind_addr(IpAddr::V4(bind));
+    }
+    conf = conf.port(args.http_port);
+    let conf = conf.build_page(match template::build_page(tag_list, web_root) {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Failed to initilize web page builder: {e}");
+            return ExitCode::FAILURE;
+        }
+    });
 
     let conf = conf.web_root(
         env::current_exe()

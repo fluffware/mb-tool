@@ -9,6 +9,8 @@ pub mod register_value;
 pub mod tag_list;
 pub mod tag_list_xhtml;
 pub mod tag_list_xml;
+pub mod tag_list_json;
 pub mod tag_ranges;
 pub mod tags;
 pub mod web_server;
+pub mod template;

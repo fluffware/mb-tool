@@ -1,13 +1,14 @@
 use crate::tag_list::TagList;
 use crate::tag_list_xhtml;
+use crate::error::DynResult;
 
 use crate::web_server::BuildPage;
 use hyper::{Body, Request, Response, StatusCode};
 use std::fmt::Write;
 use std::sync::{Arc, RwLock};
 
-pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
-    Box::new(move |_req: Request<Body>| {
+pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> DynResult<BuildPage> {
+    Ok(Box::new(move |_req: Request<Body>| {
         let mut w = String::new();
         write!(
             w,
@@ -67,5 +68,5 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>) -> BuildPage {
             .status(StatusCode::OK);
         let resp = resp.body(Body::from(w))?;
         Ok(resp)
-    })
+    }))
 }
