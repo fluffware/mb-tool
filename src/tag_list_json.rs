@@ -22,10 +22,7 @@ fn map_insert_str(map: &mut Map<String, Value>, name: &str, value: &str) {
     map.insert(name.to_string(), Value::String(value.to_string()));
 }
 
-fn presentation_attributes(
-    map: &mut Map<String, Value>,
-    presentation: &Presentation,
-)  {
+fn presentation_attributes(map: &mut Map<String, Value>, presentation: &Presentation) {
     map.insert(
         "scale".to_string(),
         Value::Number(Number::from_f64(presentation.scale as f64).unwrap()),
@@ -37,10 +34,7 @@ fn presentation_attributes(
     map_insert(map, "decimals", presentation.decimals);
 }
 
-fn encoding_attributes(
-    map: &mut Map<String, Value>,
-    encoding: &Encoding,
-) {
+fn encoding_attributes(map: &mut Map<String, Value>, encoding: &Encoding) {
     match encoding.value {
         ValueType::Integer { signed } => {
             map_insert_str(map, "value_type", "integer");
@@ -56,7 +50,7 @@ fn encoding_attributes(
     }
     map_insert_str(
         map,
-        "byte-order",
+        "byte_order",
         match encoding.byte_order {
             ByteOrder::LittleEndian => "little",
             ByteOrder::BigEndian => "big",
@@ -64,20 +58,12 @@ fn encoding_attributes(
     );
     map_insert_str(
         map,
-        "word-order",
+        "word_order",
         match encoding.word_order {
             WordOrder::LittleEndian => "little",
             WordOrder::BigEndian => "big",
         },
     );
-}
-
-fn addr_to_string(addr: u16, base_addr: u16) -> String {
-    if base_addr == 0 {
-        format!("{}", addr)
-    } else {
-        format!("{} ({})", addr + base_addr, addr)
-    }
 }
 
 fn build_enum_field(map: &mut Map<String, Value>, enums: &[IntegerEnum]) {
@@ -91,92 +77,32 @@ fn build_enum_field(map: &mut Map<String, Value>, enums: &[IntegerEnum]) {
     map.insert("enum".to_string(), Value::Array(json_enums));
 }
 
-/*
-fn build_input_field<W: Write>(
-    w: &mut W,
-    presentation: &Presentation,
-    encoding: Option<&Encoding>,
-    attrs: &str,
-) -> Result {
-    let input_type = if let Some(encoding) = encoding {
-        match encoding.value {
-            ValueType::Integer { .. } => {
-                if presentation.radix == 10 {
-                    "integer"
-                } else {
-                    "text"
-                }
-            }
-            ValueType::Float { .. } => "number",
-            ValueType::String { .. } => "text",
-        }
-    } else {
-        if presentation.radix == 10 {
-            "number"
-        } else {
-            "text"
-        }
-    };
-    write!(
-        w,
-        "<input type=\"{input_type}\" class=\"mb_value\" {} {} {}/>\n",
-        attrs,
-        presantation_attributes(presentation)?,
-        if let Some(encoding) = encoding {
-            encoding_attributes(encoding)?
-        } else {
-            "".to_string()
-        }
-    )?;
-    Ok(())
-}
-
-fn build_field<W: Write>(
-    w: &mut W,
-    ctxt: &BuildContext,
-    field: &RegisterField,
-    register: &RegisterRange,
-) -> Result {
-    write!(w, r#"<li class="field_item">"#)?;
+fn build_field(ctxt: &BuildContext, field: &RegisterField, register: &RegisterRange) -> Value {
+    let mut map = Map::new();
     if field.bit_low == field.bit_high {
-        write!(w, r#"<span class="field_bits">@{}</span>"#, field.bit_low)?;
-    } else {
-        write!(
-            w,
-            r#"<span class="field_bits">@{}-{}</span>"#,
-            field.bit_high, field.bit_low
-        )?;
+	map_insert(&mut map, "bit", field.bit_low);
     }
-
+    map_insert(&mut map, "bit_low", field.bit_low);
+    map_insert(&mut map, "bit_high", field.bit_high);
     if let Some(label) = &field.label {
-        write!(w, r#"<span class="field_label">{}</span>"#, esc(&label))?;
+        map_insert_str(&mut map, "label", label);
     }
-    let input_attrs = format!(
-        r#"mb:addr-low="{}" mb:addr-high="{}" mb:bit-low="{}" mb:bit-high="{}""#,
+    map_insert(
+        &mut map,
+        "addr_low",
         register.address_low + ctxt.base_address,
-        register.address_high + ctxt.base_address,
-        field.bit_low,
-        field.bit_high,
     );
-    build_input_field(w, &field.presentation, None, &input_attrs)?;
-    if field.bit_low == field.bit_high {
-        write!(
-            w,
-            r#"<input type="checkbox" class="mb_value" mb:addr-low="{}" mb:addr-high="{}" mb:bit-low="{}" mb:bit-high="{}"/>"#,
-            register.address_low + ctxt.base_address,
-            register.address_high + ctxt.base_address,
-            field.bit_low,
-            field.bit_high
-        )?;
-    }
-    if !field.enums.is_empty() {
-        build_enum_field(w, &field.enums, &input_attrs)?;
-    }
-    write!(w, "</li>")?;
+    map_insert(
+        &mut map,
+        "addr_high",
+        register.address_high + ctxt.base_address,
+    );
 
-    Ok(())
+    if !field.enums.is_empty() {
+        build_enum_field(&mut map, &field.enums);
+    }
+    Value::Object(map)
 }
-*/
 
 trait BuildTag {
     fn build_tag(&self, ctxt: &BuildContext) -> Value;
@@ -203,27 +129,17 @@ impl BuildTag for RegisterRange {
         }
         presentation_attributes(&mut map, &self.presentation);
         encoding_attributes(&mut map, &self.encoding);
-        /*
-        let input_attrs = format!(
-            r#"mb:addr-low="{}"  mb:addr-high="{}""#,
-            self.address_low + ctxt.base_address,
-            self.address_high + ctxt.base_address,
-        );
-        build_input_field(w, &self.presentation, Some(&self.encoding), &input_attrs)?;
+
         if !self.enums.is_empty() {
-            build_enum_field(w, &self.enums, &input_attrs)?;
-        }
-        if let Some(unit) = &self.presentation.unit {
-            write!(w, r#"<span class="unit">{unit}</span>"#)?;
+            build_enum_field(&mut map, &self.enums);
         }
         if !self.fields.is_empty() {
-            write!(w, r#"<ul class="field_list">"#)?;
+            let mut json_fields = Vec::new();
             for f in &self.fields {
-                build_field(w, ctxt, f, self)?;
+                json_fields.push(build_field(ctxt, f, self));
             }
-            write!(w, r#"</ul>"#)?;
+            map.insert("fields".to_string(), Value::Array(json_fields));
         }
-         */
         Value::Object(map)
     }
 }
@@ -248,7 +164,7 @@ where
     T: BuildTag,
 {
     let mut map = Map::new();
-    map_insert(&mut map, "addr", group.base_address+ctxt.base_address);
+    map_insert(&mut map, "addr", group.base_address + ctxt.base_address);
     if ctxt.base_address != 0 {
         map_insert(&mut map, "rel", group.base_address);
     }
@@ -291,4 +207,3 @@ pub fn build_bit_list(tags: &Vec<BitOrGroup>) -> Value {
     let ctxt = BuildContext { base_address: 0 };
     build_sub_list(&ctxt, tags)
 }
-

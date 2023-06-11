@@ -9,17 +9,26 @@
     {{#with holding_registers}}
     <h2>Holding registers</h2>
     <div id="holding_registers">
-      {{> item_list}}
+      {{> register_list}}
     </div>
     {{/with}}
+    {{#with input_registers}}
     <h2>Input registers</h2>
-    <div id="input_registers">
-    </div>
+      <div id="input_registers">
+      {{> register_list}}
+      </div>
+      {{/with}}
+    {{#with coils}}
     <h2>Coils</h2>
-    <div id="coils">
-    </div>
+	<div id="coils">
+	{{> bit_list}}
+	</div>
+	{{/with}}
+    {{#with discrete_inputs}}
     <h2>Discrete inputs</h2>
-    <div id="discrete_inputs">
-    </div>
+	  <div id="discrete_inputs">
+	  {{> bit_list}}
+	  </div>
+	  {{/with}}
   </body>
 </xhtml>

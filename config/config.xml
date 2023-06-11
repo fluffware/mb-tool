@@ -19,7 +19,7 @@
         <register-range addr-low="10" addr-high="19" label="String" value-type="string" fill="0" initial-value="Hello World!"></register-range>
         <register-range addr-low="20" addr-high="21" label="Float 32" value-type="float" initial-value="0.5"></register-range>
         <register-range addr-low="22" addr-high="25" label="Float 64" value-type="float" initial-value="12.5" word-order="little"></register-range>
-	<group base-addr="10" label="Group 1">
+	<group base-addr="25" label="Group 1">
 	  <register addr="30" label="Grouped 1" initial-value="992"/>
 	  <group base-addr="0" label="Subgroup">
 	    <register addr="0" label="Subgrouped 1" initial-value="8299"/>
