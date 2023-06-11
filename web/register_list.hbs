@@ -1,0 +1,57 @@
+<ul class="tag_list">
+  {{#each this}}
+  {{#with group}}
+  <li class="tag_group">
+    <div class="group_block">
+      <div class="group_header">
+	<img class="group_indicator" />
+	<span class="group_addr">
+	  {{> mb_addr}}
+	</span>
+	<span class="group_label">{{label}}</span>
+      </div>
+      <div class="group_body">
+	{{#with children}}
+	{{> register_list}}
+	{{/with}}
+      </div>
+    </div>
+  </li>
+  {{/with}}
+  {{#with tag}}
+  <li class="tag_item">
+    <span class="register_addr">{{>mb_addr}}</span>
+    {{#with label}}
+    <span class="register_label">{{this}}</span>
+    {{/with}}
+    {{> input_field}}
+    {{#if unit}}
+    <span class="unit">{{unit}}</span>
+    {{/if}}
+    {{#if fields}}
+    <ul class="field_list">
+      {{#each fields}}
+      <li class="field_item">
+	<span class="field_bits">
+	  {{~#if bit includeZero=true~}}
+	  @{{bit}}
+	  {{~else~}}
+	  @{{bit_low}} - {{bit_high}}
+	  {{~/if}}
+	</span>
+	
+	{{#with label}}
+	<span class="field_label">{{this}}</span>
+	{{/with}}
+	{{> input_field}}
+	{{#if bit includeZero=true}}
+	<input type="checkbox" class="mb_value" mb:addr-low="{{addr_low}}" mb:addr-high="{{addr_high}}" mb:bit-low="{{bit_low}}" mb:bit-high="{{bit-high}}"/>
+	{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+    {{/if}}
+  </li>
+  {{/with}}
+  {{/each}}
+</ul>

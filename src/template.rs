@@ -58,6 +58,20 @@ pub fn build_page(tag_list: Arc<RwLock<TagList>>, web_dir: PathBuf) -> DynResult
             "holding_registers".to_string(),
             tag_list_json::build_register_list(&tags.holding_registers),
         );
+	map.insert(
+            "input_registers".to_string(),
+            tag_list_json::build_register_list(&tags.input_registers),
+        );
+	map.insert(
+            "coils".to_string(),
+            tag_list_json::build_bit_list(&tags.coils),
+        );
+	map.insert(
+            "discrete_inputs".to_string(),
+            tag_list_json::build_bit_list(&tags.discrete_inputs),
+        );
+	
+	
         let xml = match templates.engine.render(template_name, &Value::Object(map)) {
             Ok(x) => x,
             Err(e) => {

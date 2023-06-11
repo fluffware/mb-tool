@@ -1,0 +1,26 @@
+<input type="
+		 {{~#if (and (eq value_type 'integer') (eq radix 10))~}}
+		 integer
+		 {{~else~}}
+		 {{~#if (eq value_type 'float')~}}
+		 number
+		 {{~else~}}
+		 text
+		 {{~/if}}
+		 {{~/if~}}
+		 "
+	   class="mb_value"
+	   mb:addr-low="{{addr_low}}"  mb:addr-high="{{addr_high}}"
+	   {{#if value_type}}mb:value-type="{{value_type}}"{{/if}}
+  {{#if scale}}mb:scale="{{scale}}"{{/if}}
+  {{#if radix}}mb:radix="{{radix}}"{{/if}}
+  {{#if sign}}mb:sign="{{sign}}"{{/if}}
+  {{#if decimals includeZero=true}}mb:decimals="{{decimals}}"{{/if}}
+  {{#if bit_low includeZero=true}}mb:bit-low="{{bit_low}}"{{/if}}
+  {{#if bit_high includeZero=true}}mb:bit-high="{{bit_high}}"{{/if}}
+  {{#if unit}}mb:unit="{{unit}}"{{/if}}
+  {{#if fill includeZero=true}}mb:fill="{{fill}}"{{/if}}
+  {{#if byte_order}}mb:byte-order="{{byte_order}}"{{/if}}
+  {{#if word_order}}mb:word-order="{{word_order}}"{{/if}}
+  />
+  

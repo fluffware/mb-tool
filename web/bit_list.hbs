@@ -1,0 +1,31 @@
+<ul class="tag_list">
+  {{#each this}}
+  {{#with group}}
+  <li class="tag_group">
+    <div class="group_block">
+      <div class="group_header">
+	<img class="group_indicator" />
+	<span class="group_addr">
+	  {{> mb_addr}}
+	</span>
+	<span class="group_label">{{label}}</span>
+      </div>
+      <div class="group_body">
+	{{#with children}}
+	{{> bit_list}}
+	{{/with}}
+      </div>
+    </div>
+  </li>
+  {{/with}}
+  {{#with tag}}
+  <li class="tag_item">
+    <span class="bit_addr">{{>mb_addr}}</span>
+    {{#with label}}
+    <span class="bit_label">{{this}}</span>
+    {{/with}}
+    <input type="checkbox" class="mb_value" mb:addr="{{addr}}}"/>
+  </li>
+  {{/with}}
+  {{/each}}
+</ul>
