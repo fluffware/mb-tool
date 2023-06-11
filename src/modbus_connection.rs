@@ -304,16 +304,22 @@ impl ClientOp {
 
 async fn client_poll(
     client: &mut Context,
-    mut tags: Tags,
-    ranges: TagRanges,
+    tags: &mut Tags,
+    ranges: &TagRanges,
     options: &ModbusOptions,
 ) -> DynResult<()> {
     let seq = ClientOp::read_sequence(&ranges);
     let mut iter = seq.iter().cycle();
     loop {
         let op = iter.next().unwrap();
-        if let Err(e) = op.execute(client, &mut tags).await {
+        if let Err(e) = op.execute(client, tags).await {
             error!("Failed to read from server: {e}");
+            if let Ok(io_err) = e.downcast::<std::io::Error>() {
+                if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
+                    debug!("Error: {io_err:?}");
+                    return Err(io_err);
+                }
+            }
         }
         tokio::select! {
             _res = time::sleep(options.poll_interval) => (),
@@ -352,7 +358,7 @@ async fn client_poll(
 pub async fn client_rtu<T>(
     ser: T,
     slave: Slave,
-    tags: Tags,
+    mut tags: Tags,
     ranges: TagRanges,
     options: ModbusOptions,
 ) -> DynResult<()>
@@ -360,18 +366,34 @@ where
     T: AsyncRead + AsyncWrite + Debug + Unpin + Send + 'static,
 {
     let mut ctxt = rtu::connect_slave(ser, slave).await?;
-    client_poll(&mut ctxt, tags, ranges, &options).await?;
+    client_poll(&mut ctxt, &mut tags, &ranges, &options).await?;
     Ok(())
 }
 
 pub async fn client_tcp(
     socket: SocketAddr,
     slave: Slave,
-    tags: Tags,
+    mut tags: Tags,
     ranges: TagRanges,
     options: ModbusOptions,
 ) -> DynResult<()> {
-    let mut ctxt = tcp::connect_slave(socket, slave).await?;
-    client_poll(&mut ctxt, tags, ranges, &options).await?;
+    loop {
+        match tcp::connect_slave(socket, slave).await {
+	    Ok(mut ctxt) => {
+		if let Err(e) = client_poll(&mut ctxt, &mut tags, &ranges, &options).await {
+		    if let Ok(io_err) = e.downcast::<std::io::Error>() {
+			if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
+			} else {
+			    break;
+			}
+		    }
+		}
+	    }
+	    Err(_e) => {
+		
+	    }
+	};
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
     Ok(())
 }
