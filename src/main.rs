@@ -10,8 +10,8 @@ use mb_tool::tags::Tags;
 use mb_tool::template;
 use mb_tool::web_server;
 use roxmltree::Document;
+use rust_embed::RustEmbed;
 use serde_derive::{Deserialize, Serialize};
-use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::net::IpAddr;
@@ -288,6 +288,18 @@ mod browser {
     }
 }
 
+#[derive(RustEmbed)]
+#[folder = "web"]
+#[include = "*.html"]
+#[include = "*.js"]
+#[include = "*.css"]
+#[include = "*.svg"]
+struct WebFiles;
+
+#[derive(RustEmbed)]
+#[folder = "web/templates"]
+struct WebTemplates;
+
 #[tokio::main]
 pub async fn main() -> ExitCode {
     tracing_subscriber::fmt::init();
@@ -400,25 +412,13 @@ pub async fn main() -> ExitCode {
         }
     }
 
-    let web_root = env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|p| p.join("web")))
-        .unwrap_or_else(|| PathBuf::from("web"));
-
-    if !web_root.is_dir() {
-        error!(
-            "Web root {} does not exist or is not a directory",
-            web_root.display()
-        );
-        return ExitCode::FAILURE;
-    }
     let mut conf = web_server::ServerConfig::new(ws_send, mb_send);
 
     if let Some(bind) = args.http_address {
         conf = conf.bind_addr(IpAddr::V4(bind));
     }
     conf = conf.port(args.http_port);
-    let conf = conf.build_page(match template::build_page(tag_list, web_root) {
+    let conf = conf.build_page(match template::build_page::<WebTemplates>(tag_list) {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to initilize web page builder: {e}");
@@ -426,12 +426,25 @@ pub async fn main() -> ExitCode {
         }
     });
 
-    let conf = conf.web_root(
-        env::current_exe()
-            .ok()
-            .and_then(|exe| exe.parent().map(|p| p.join("web")))
-            .unwrap_or_else(|| PathBuf::from("web")),
-    );
+    let conf = conf.web_resource(Box::new(|path| {
+        let mut path = path.trim_start_matches('/');
+        if path.is_empty() {
+            path = "index.html";
+        }
+        let suffix = path.rsplit('.').next().unwrap_or("");
+        let mime_type = match suffix {
+            "html" => "text/html",
+            "hbs" => "text/x.handlebars",
+            "js" => "text/javascript",
+            "svg" => "image/scg+xml",
+            "css" => "text/css",
+            _ => "application/octet-stream",
+        };
+        match WebFiles::get(path) {
+            Some(embedded) => Ok((mime_type, Bytes::from(embedded.data.into_owned()))),
+            None => Err("Not found".into()),
+        }
+    }));
 
     let (server, bound_ip, bound_port) = web_server::setup_server(conf);
 

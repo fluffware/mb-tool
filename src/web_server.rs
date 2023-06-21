@@ -13,29 +13,34 @@ use log::{debug, error, info};
 use std::convert::Infallible;
 use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{broadcast, mpsc};
 use websocket_lite::{Message, Opcode};
 
 pub type BuildPage = Box<dyn FnMut(Request<Body>) -> DynResult<Response<Body>> + Send>;
 
+/// Takes a path and returns (mime_type, resource_data)
+pub type GetResurce = Box<dyn FnMut(&str) -> DynResult<(&str, Bytes)> + Send>;
+
 pub struct ServerConfig {
     bind_addr: Option<IpAddr>,
     port: Option<u16>,
     build_page: BuildPage,
-    web_root: PathBuf,
+    web_resource: GetResurce,
     ws_send: WsSender,
     ws_receive: WsReceiveChannel,
 }
 
+fn no_resource(_path: &str) -> DynResult<(&str, Bytes)> {
+    Err("No rosurce".into())
+}
 impl ServerConfig {
     pub fn new(ws_send: WsSender, ws_receive: WsReceiveChannel) -> Self {
         Self {
             bind_addr: None,
             port: None,
             build_page: Box::new(default_page),
-            web_root: PathBuf::from("web"),
+            web_resource: Box::new(no_resource),
             ws_send,
             ws_receive,
         }
@@ -55,8 +60,8 @@ impl ServerConfig {
         self
     }
 
-    pub fn web_root(mut self, root: PathBuf) -> Self {
-        self.web_root = root;
+    pub fn web_resource(mut self, resource: GetResurce) -> Self {
+        self.web_resource = resource;
         self
     }
 }
@@ -123,20 +128,26 @@ async fn handle(conf: Arc<Mutex<ServerConfig>>, req: Request<Body>) -> DynResult
                 })
                 .await
             } else {
-                let files = {
-                    let conf = conf.lock().unwrap();
-                    hyper_staticfile::Static::new(conf.web_root.clone())
+                let (mime_type, data) = {
+                    let mut conf = conf.lock().unwrap();
+                    match (conf.web_resource)(req.uri().path()) {
+                        Ok(res) => res,
+                        Err(e) => {
+                            return Response::builder()
+                                .status(StatusCode::NOT_FOUND)
+                                .header(header::CONTENT_TYPE, "text/plain")
+                                .body(Body::from(format!("File error: {e}")))
+                                .map_err(|e| {
+                                    Box::new(e) as Box<dyn std::error::Error + Send + Sync>
+                                })
+                        }
+                    }
                 };
-                files
-                    .serve(req)
-                    .await
-                    .or_else(|e| {
-                        Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .header(header::CONTENT_TYPE, "text/plain")
-                            .body(Body::from(format!("File error: {e}")))
-                    })
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_TYPE, mime_type)
+                    .body(Body::from(data))
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
             }
         }
         m => Response::builder()

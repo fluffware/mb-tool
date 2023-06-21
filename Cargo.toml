@@ -35,7 +35,8 @@ num-bigint = "0.4"
 webbrowser= {version = "0.8", optional=true}
 escaper="0.1.1"
 openssl={version="*"}
-handlebars={version = "4.3", features=["dir_source"]}
+handlebars={version = "4.3", features=["rust-embed"]}
+rust-embed={version="6.7.0", features=["include-exclude"]}
 
 [patch.crates-io]
 websocket-lite = {git = "https://github.com/1tgr/rust-websocket-lite.git"}

@@ -7,17 +7,19 @@ use hyper::{Body, Request, Response, StatusCode};
 use serde_json::{Map, Value};
 use log::{debug, error};
 use std::fmt::Write;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
+use rust_embed::RustEmbed;
 
 struct Template {
     engine: Handlebars<'static>,
 }
 
 impl Template {
-    fn new(template_dir: &Path) -> DynResult<Template> {
+    fn new<R>() -> DynResult<Template>
+        where R: RustEmbed
+    {
         let mut engine = Handlebars::new();
-        engine.register_templates_directory(".hbs", template_dir)?;
+        engine.register_embed_templates::<R>()?;
         Ok(Template { engine })
     }
 }
@@ -45,8 +47,10 @@ pub fn error_response() -> DynResult<Response<Body>> {
     Ok(resp)
 }
 
-pub fn build_page(tag_list: Arc<RwLock<TagList>>, web_dir: PathBuf) -> DynResult<BuildPage> {
-    let templates = Template::new(&web_dir)?;
+pub fn build_page<R>(tag_list: Arc<RwLock<TagList>>) -> DynResult<BuildPage>
+    where R:RustEmbed
+{
+    let templates = Template::new::<R>()?;
 
     Ok(Box::new(move |req: Request<Body>| {
         let template_name = req.uri().path().strip_prefix("/dyn/").unwrap();
