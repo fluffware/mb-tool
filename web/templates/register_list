@@ -45,7 +45,7 @@
 	{{/with}}
 	{{> input_field}}
 	{{#if bit includeZero=true}}
-	<input type="checkbox" class="mb_value" mb:addr-low="{{addr_low}}" mb:addr-high="{{addr_high}}" mb:bit-low="{{bit_low}}" mb:bit-high="{{bit-high}}"/>
+	<input type="checkbox" class="mb_value" mb:addr-low="{{addr_low}}" mb:addr-high="{{addr_high}}" mb:bit-low="{{bit_low}}" mb:bit-high="{{bit_high}}"/>
 	{{/if}}
       </li>
       {{/each}}
