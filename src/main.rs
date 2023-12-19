@@ -451,7 +451,7 @@ pub async fn main() -> ExitCode {
             "html" => "text/html",
             "hbs" => "text/x.handlebars",
             "js" => "text/javascript",
-            "svg" => "image/scg+xml",
+            "svg" => "image/svg+xml",
             "css" => "text/css",
             _ => "application/octet-stream",
         };
