@@ -23,7 +23,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
 use tokio_modbus::slave::Slave;
-use tokio_serial::SerialStream;
+use tokio_serial::{Parity,SerialStream};
 
 #[derive(Serialize, Deserialize)]
 enum MbCommands {
@@ -216,6 +216,9 @@ struct CmdArgs {
     /// Baud rate of serial port
     #[arg(long)]
     baud_rate: Option<u32>,
+    // Parity of serial port
+    #[arg(long, default_value = "Even")]
+    parity: String,
     /// Bind HTTP-server to this address
     #[arg(long)]
     http_address: Option<Ipv4Addr>,
@@ -343,7 +346,13 @@ pub async fn main() -> ExitCode {
     let join: JoinHandle<DynResult<()>>;
     if args.server {
         if let Some(path) = args.serial_device {
-            let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
+            let parity = match args.parity.get(..1) {
+                Some("e") | Some("E") => Parity::Even,
+                Some("o") | Some("O") => Parity::Odd,
+                Some("n") | Some("N") => Parity::None,
+                Some(_) | None => Parity::Even
+            };
+            let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600)).parity(parity);
             match SerialStream::open(&builder) {
                 Ok(ser) => {
                     join = tokio::spawn(modbus_connection::server_rtu(
@@ -376,7 +385,13 @@ pub async fn main() -> ExitCode {
         }
     } else {
         if let Some(path) = args.serial_device {
-            let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600));
+            let parity = match args.parity.get(..1) {
+                Some("e") | Some("E") => Parity::Even,
+                Some("o") | Some("O") => Parity::Odd,
+                Some("n") | Some("N") => Parity::None,
+                Some(_) | None => Parity::Even
+            };
+            let builder = tokio_serial::new(&path, args.baud_rate.unwrap_or(9600)).parity(parity);
             match SerialStream::open(&builder) {
                 Ok(ser) => {
                     join = tokio::spawn(modbus_connection::client_rtu(
