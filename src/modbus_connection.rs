@@ -216,12 +216,24 @@ const READ_REGISTERS_MAX_LEN: u16 = 125;
 //const WRITE_REGISTERS_MAX_LEN: u16 = 123;
 //const WRITE_BITS_MAX_LEN: u16 = 1968;
 
+const CLIENT_TIMEOUT: Duration = Duration::from_millis(500);
+
 impl ClientOp {
     pub async fn execute(&self, client: &mut Context, tags: &mut Tags) -> DynResult<()> {
         match self {
             ClientOp::ReadHoldingRegisters(start, length) => {
-                let data = client.read_holding_registers(*start, *length).await?;
-                tags.holding_registers.update(*start as usize, &data);
+                match tokio::time::timeout(
+                    CLIENT_TIMEOUT,
+                    client.read_holding_registers(*start, *length),
+                )
+                .await
+                {
+                    Ok(Ok(data)) => {
+                        tags.holding_registers.update(*start as usize, &data);
+                    }
+                    Ok(Err(e)) => return Err(e.into()),
+                    Err(e) => return Err(e.into()),
+                }
             }
             /*
             ClientOp::WriteHoldingRegisters(start, length) => {
@@ -235,12 +247,28 @@ impl ClientOp {
                 }
             }*/
             ClientOp::ReadInputRegisters(start, length) => {
-                let data = client.read_input_registers(*start, *length).await?;
-                tags.input_registers.update(*start as usize, &data);
+                match tokio::time::timeout(
+                    CLIENT_TIMEOUT,
+                    client.read_input_registers(*start, *length),
+                )
+                .await
+                {
+                    Ok(Ok(data)) => {
+                        tags.input_registers.update(*start as usize, &data);
+                    }
+                    Ok(Err(e)) => return Err(e.into()),
+                    Err(e) => return Err(e.into()),
+                }
             }
             ClientOp::ReadCoils(start, length) => {
-                let data = client.read_coils(*start, *length).await?;
-                tags.coils.update(*start as usize, &data);
+                match tokio::time::timeout(CLIENT_TIMEOUT, client.read_coils(*start, *length)).await
+                {
+                    Ok(Ok(data)) => {
+                        tags.coils.update(*start as usize, &data);
+                    }
+                    Ok(Err(e)) => return Err(e.into()),
+                    Err(e) => return Err(e.into()),
+                }
             }
             /*
             ClientOp::WriteCoils(start, length) => {
@@ -254,8 +282,18 @@ impl ClientOp {
                 }
             }*/
             ClientOp::ReadDiscreteInputs(start, length) => {
-                let data = client.read_discrete_inputs(*start, *length).await?;
-                tags.discrete_inputs.update(*start as usize, &data);
+                match tokio::time::timeout(
+                    CLIENT_TIMEOUT,
+                    client.read_discrete_inputs(*start, *length),
+                )
+                .await
+                {
+                    Ok(Ok(data)) => {
+                        tags.discrete_inputs.update(*start as usize, &data);
+                    }
+                    Ok(Err(e)) => return Err(e.into()),
+                    Err(e) => return Err(e.into()),
+                }
             }
         }
         Ok(())
@@ -379,20 +417,18 @@ pub async fn client_tcp(
 ) -> DynResult<()> {
     loop {
         match tcp::connect_slave(socket, slave).await {
-	    Ok(mut ctxt) => {
-		if let Err(e) = client_poll(&mut ctxt, &mut tags, &ranges, &options).await {
-		    if let Ok(io_err) = e.downcast::<std::io::Error>() {
-			if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
-			} else {
-			    break;
-			}
-		    }
-		}
-	    }
-	    Err(_e) => {
-		
-	    }
-	};
+            Ok(mut ctxt) => {
+                if let Err(e) = client_poll(&mut ctxt, &mut tags, &ranges, &options).await {
+                    if let Ok(io_err) = e.downcast::<std::io::Error>() {
+                        if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(_e) => {}
+        };
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
     Ok(())
