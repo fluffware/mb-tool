@@ -8,6 +8,7 @@ use serde_json as json;
 
 #[derive(Clone)]
 struct BuildContext {
+    unit_addr: u8,
     base_address: u16,
 }
 
@@ -80,13 +81,14 @@ fn build_enum_field(map: &mut Map<String, Value>, enums: &[IntegerEnum]) {
 fn build_field(ctxt: &BuildContext, field: &RegisterField, register: &RegisterRange) -> Value {
     let mut map = Map::new();
     if field.bit_low == field.bit_high {
-	map_insert(&mut map, "bit", field.bit_low);
+        map_insert(&mut map, "bit", field.bit_low);
     }
     map_insert(&mut map, "bit_low", field.bit_low);
     map_insert(&mut map, "bit_high", field.bit_high);
     if let Some(label) = &field.label {
         map_insert_str(&mut map, "label", label);
     }
+    map_insert(&mut map, "unit_addr", ctxt.unit_addr);
     map_insert(
         &mut map,
         "addr_low",
@@ -117,6 +119,7 @@ impl BuildTag for RegisterRange {
                 map_insert(&mut map, "rel", self.address_low);
             }
         }
+        map_insert(&mut map, "unit_addr", ctxt.unit_addr);
         map_insert(&mut map, "addr_low", self.address_low + ctxt.base_address);
         map_insert(&mut map, "addr_high", self.address_high + ctxt.base_address);
         if ctxt.base_address != 0 {
@@ -147,6 +150,7 @@ impl BuildTag for RegisterRange {
 impl BuildTag for Bit {
     fn build_tag(&self, ctxt: &BuildContext) -> Value {
         let mut map = Map::new();
+	map_insert(&mut map, "unit_addr", ctxt.unit_addr);
         map_insert(&mut map, "addr", self.address + ctxt.base_address);
         if ctxt.base_address != 0 {
             map_insert(&mut map, "rel", self.address);
@@ -198,12 +202,18 @@ where
     Value::Array(items)
 }
 
-pub fn build_register_list(tags: &Vec<RegisterOrGroup>) -> Value {
-    let ctxt = BuildContext { base_address: 0 };
+pub fn build_register_list(unit_addr: u8, tags: &Vec<RegisterOrGroup>) -> Value {
+    let ctxt = BuildContext {
+        unit_addr,
+        base_address: 0,
+    };
     build_sub_list(&ctxt, tags)
 }
 
-pub fn build_bit_list(tags: &Vec<BitOrGroup>) -> Value {
-    let ctxt = BuildContext { base_address: 0 };
+pub fn build_bit_list(unit_addr: u8, tags: &Vec<BitOrGroup>) -> Value {
+    let ctxt = BuildContext {
+        unit_addr,
+        base_address: 0,
+    };
     build_sub_list(&ctxt, tags)
 }

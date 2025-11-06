@@ -181,7 +181,7 @@ mod test {
             fields: Vec::new(),
             initial_value: None,
             presentation: Presentation {
-                base: 10,
+                radix: 10,
                 decimals: 0,
                 scale: 1.0,
                 unit: None,
@@ -191,6 +191,7 @@ mod test {
                 byte_order: ByteOrder::BigEndian,
                 word_order: WordOrder::BigEndian,
             },
+            enums: Vec::new(),
         };
         assert_eq!(&parse(&reg, "8933224").unwrap(), &[0x0088, 0x4f68]);
         reg.encoding.byte_order = ByteOrder::LittleEndian;

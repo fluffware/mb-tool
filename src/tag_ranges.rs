@@ -1,5 +1,5 @@
 use crate::range_array::RangeArray;
-use crate::tag_list::{BitOrGroup, RegisterOrGroup, TagList};
+use crate::tag_list::{BitOrGroup, RegisterOrGroup, TagDefList};
 
 #[derive(Debug)]
 pub struct TagRanges {
@@ -56,8 +56,8 @@ fn get_bit_ranges(ranges: &mut RangeArray<u16>, base_address: u16, bits: &[BitOr
         }
     }
 }
-impl From<&TagList> for TagRanges {
-    fn from(tag_list: &TagList) -> Self {
+impl From<&TagDefList> for TagRanges {
+    fn from(tag_list: &TagDefList) -> Self {
         let mut ranges = Self::new();
         get_register_ranges(&mut ranges.input_registers, 0, &tag_list.input_registers);
 

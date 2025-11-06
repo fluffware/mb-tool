@@ -5,7 +5,9 @@
     <script src="/range_dict.js"/>
     <script src="/modbus.js"/>
   </head>
-  <body onload="setup()">
+    <body onload="setup()">
+     {{#each this}}
+    <h1>Unit {{unit_addr}}</h1>
     {{#with holding_registers}}
     <h2>Holding registers</h2>
     <div id="holding_registers">
@@ -30,5 +32,6 @@
 	  {{> bit_list}}
 	  </div>
 	  {{/with}}
+ {{/each}}
   </body>
 </xhtml>

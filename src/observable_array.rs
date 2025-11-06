@@ -1,11 +1,15 @@
 use crate::range_array::RangeArray;
 #[allow(unused_imports)]
 use log::debug;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tokio::sync::Notify;
 
 #[derive(Debug)]
-pub struct Base<T> {
+pub struct Base<T>
+where
+    T: Send,
+{
     array: Vec<T>,
     observers: Vec<Option<Observer>>,
 }
@@ -18,7 +22,7 @@ struct Observer {
 
 impl<T> Base<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + Send,
 {
     pub fn new(size: usize) -> Self {
         let mut array = Vec::with_capacity(size);
@@ -68,7 +72,7 @@ where
 #[derive(Debug)]
 pub struct ObservableArray<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + Send,
 {
     base: Arc<RwLock<Base<T>>>,
     index: usize,
@@ -77,7 +81,7 @@ where
 
 impl<T> Clone for ObservableArray<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + Send,
 {
     fn clone(&self) -> Self {
         let base = self.base.clone();
@@ -92,7 +96,7 @@ where
 
 impl<T> Drop for ObservableArray<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + Send,
 {
     fn drop(&mut self) {
         let mut base = self.base.write().unwrap();
@@ -102,7 +106,7 @@ where
 
 impl<T> ObservableArray<T>
 where
-    T: Default + Clone,
+    T: Default + Clone + Send + Sync + 'static,
 {
     pub fn new(size: usize) -> Self {
         let mut base = Base::<T>::new(size);
@@ -115,23 +119,25 @@ where
         }
     }
 
-    pub async fn updated(&self) -> RangeArray<usize> {
-        loop {
-            /*  Register for notification before reading updates.
-            This way a notification won't be missed if it's triggered after the read but before the await */
-            {
-                let mut base = self.base.write().unwrap();
-                let updates = base.observers[self.index]
-                    .as_mut()
-                    .unwrap()
-                    .changed
-                    .clear_into();
-                if !updates.is_empty() {
-                    return updates;
+    pub fn updated(&self) -> Pin<Box<dyn Future<Output = RangeArray<usize>> + Send + 'static>> {
+        let notify = self.notify.clone();
+        let base = self.base.clone();
+        let index = self.index;
+        Box::pin(async move {
+            loop {
+                /*  Register for notification before reading updates.
+                This way a notification won't be missed if it's triggered after the read but before the await */
+                let notified = notify.notified();
+                {
+                    let mut base = base.write().unwrap();
+                    let updates = base.observers[index].as_mut().unwrap().changed.clear_into();
+                    if !updates.is_empty() {
+                        return updates;
+                    }
                 }
+                notified.await;
             }
-            self.notify.notified().await;
-        }
+        })
     }
 
     pub fn update(&self, start: usize, data: &[T]) {

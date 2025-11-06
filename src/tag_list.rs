@@ -94,7 +94,7 @@ pub enum TagOrGroup<T> {
 pub type RegisterOrGroup = TagOrGroup<RegisterRange>;
 pub type BitOrGroup = TagOrGroup<Bit>;
 
-pub struct TagList {
+pub struct TagDefList {
     pub input_registers: Vec<RegisterOrGroup>,
     pub holding_registers: Vec<RegisterOrGroup>,
     pub discrete_inputs: Vec<BitOrGroup>,

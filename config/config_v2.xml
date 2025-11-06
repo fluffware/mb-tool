@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tag-list xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v2">
+  <device addr="1">
+    <holding-registers>
+        <register addr="0" label="Reg 0" initial-value="7">
+            <field bit="0" label="0.0" />
+            <field bit-low="1" bit-high="8" label="0.1-8" >
+	      <enum label="Enum 3" value="3"/>
+	      <enum label="Enum 54" value="54"/>
+	    </field>
+        </register>
+        <register addr="1" label="Reg 1" initial-value="7287" >
+	  <enum label="Enum 1" value="1"/>
+	  <enum label="Enum 2" value="2"/>
+	  <enum label="Enum 32" value="32"/>
+	</register>
+        <register addr="2" label="Reg 2" scale="10" unit="m" initial-value="78.34"/>
+        <register-range addr-low="3" addr-high="4" label="Reg 4" initial-value="8982"/>
+        <register-range addr-low="5" addr-high="8" label="Reg 5" word-order="little" sign="signed" radix="16" initial-value="-0x89829a88f"/>
+        <register-range addr-low="10" addr-high="19" label="String" value-type="string" fill="0" initial-value="Hello World!"></register-range>
+        <register-range addr-low="20" addr-high="21" label="Float 32" value-type="float" initial-value="0.53" word-order="little"></register-range>
+        <register-range addr-low="22" addr-high="25" label="Float 64" value-type="float" initial-value="12.5" word-order="little"></register-range>
+	<group base-addr="25" label="Group 1">
+	  <register addr="30" label="Grouped 1" initial-value="992"/>
+	  <group base-addr="0" label="Subgroup">
+	    <register addr="0" label="Subgrouped 1" initial-value="8299"/>
+	    <register addr="1" label="Subgrouped 2" initial-value="7"/>
+	  </group>
+	  <register addr="31" label="Grouped 2" initial-value="98"/>
+	</group>
+    </holding-registers>
+    <input-registers>
+      <register addr="2" label="Reg 2" initial-value="1"/>
+      <group label="Group">
+	<register addr="3" label="Reg 3" sign="signed" initial-value="-34"/>
+      </group>
+    </input-registers>
+    <discrete-inputs>
+       <group label="Group 1">
+	 <bit addr="0" label="Bit 0" initial-value="1"/>
+	 <bit addr="2" label="Bit 2" initial-value="0"/>
+       </group>
+      <bit addr="1" label="Bit 1" initial-value="1"/>
+      <bit addr="8" label="Bit 8" initial-value="0"/>
+    </discrete-inputs>
+    <coils>
+      <bit addr="3" label="Bit 3" initial-value="1"/>
+      <bit addr="6" label="Bit 6" initial-value="0"/>
+      <group label="Group 1">
+	<bit addr="0" label="Bit 0" initial-value="1"/>
+	<bit addr="1" label="Bit 1" initial-value="0"/>
+	<bit addr="2" label="Bit 2" initial-value="0"/>
+      </group>
+    </coils>
+  </device>
+  <device addr="3">
+    <holding-registers>
+      <register addr="0" label="Reg 0" initial-value="7"/>
+    </holding-registers>
+  </device>
+</tag-list>

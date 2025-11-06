@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tag-list xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v2">
+  <device addr="1">
+    <holding-registers>
+      <group base-addr="0" label="f64">
+	<register-range addr-low="0" addr-high="3"  label="BL WL" value-type="float" initial-value="0.33" byte-order="little" word-order="little"/>
+	<register-range addr-low="4" addr-high="7"  label="BB WL" value-type="float" initial-value="0.43" byte-order="big" word-order="little"/>
+	<register-range addr-low="8" addr-high="11"  label="BL WB" value-type="float" initial-value="0.53" byte-order="little" word-order="big"/>
+	<register-range addr-low="12" addr-high="15"  label="BB WB" value-type="float" initial-value="0.63" byte-order="big" word-order="big"/>
+      </group>
+      <group base-addr="16" label="f32">
+	<register-range addr-low="0" addr-high="1"  label="BL WL" value-type="float" initial-value="0.21" byte-order="little" word-order="little"/>
+	<register-range addr-low="2" addr-high="3"  label="BB WL" value-type="float" initial-value="0.41" byte-order="big" word-order="little"/>
+	<register-range addr-low="4" addr-high="5"  label="BL WB" value-type="float" initial-value="0.51" byte-order="little" word-order="big"/>
+	<register-range addr-low="6" addr-high="7"  label="BB WB" value-type="float" initial-value="0.61" byte-order="big" word-order="big"/>
+      </group>
+    </holding-registers>
+  </device>
+</tag-list>

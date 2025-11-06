@@ -1,8 +1,17 @@
 use crate::observable_array::ObservableArray;
 use crate::register_value;
-use crate::tag_list::TagList;
+use crate::tag_list::TagDefList;
 use crate::tag_list::TagSequence;
+use crate::range_array::RangeArray;
 use log::error;
+use std::pin::Pin;
+
+pub enum Updated {
+    HoldingRegisters(RangeArray<usize>),
+    InputRegisters(RangeArray<usize>),
+    DiscreteInputs(RangeArray<usize>),
+    Coils(RangeArray<usize>),
+}
 
 #[derive(Clone)]
 pub struct Tags {
@@ -13,7 +22,7 @@ pub struct Tags {
 }
 
 impl Tags {
-    pub fn new(init: &TagList) -> Tags {
+    pub fn new(init: &TagDefList) -> Tags {
         let holding_registers = ObservableArray::new(65536);
         let input_registers = ObservableArray::new(65536);
         let discrete_inputs = ObservableArray::new(65536);
@@ -65,5 +74,19 @@ impl Tags {
             discrete_inputs,
             coils,
         }
+    }
+
+    pub fn updated(&self) -> Pin<Box<dyn Future<Output = Updated> + Send + 'static>> {
+	let holding_registers = self.holding_registers.updated();
+	let input_registers =  self.input_registers.updated();
+	let discrete_inputs = self.discrete_inputs.updated() ;
+	let coils = self.coils.updated();
+	Box::pin(async move {
+	tokio::select! {
+            ranges = holding_registers =>Updated::HoldingRegisters(ranges),
+            ranges = input_registers => Updated::InputRegisters(ranges),
+            ranges = discrete_inputs=>Updated::DiscreteInputs(ranges),
+            ranges = coils => Updated::Coils(ranges),
+        }})
     }
 }

@@ -1,14 +1,14 @@
+use crate::device_list::DeviceDefList;
 use crate::error::DynResult;
-use crate::tag_list::TagList;
-use crate::web_server::BuildPage;
 use crate::tag_list_json;
+use crate::web_server::{BuildPage, DynBody, DynResponse};
 use handlebars::Handlebars;
-use hyper::{Body, Request, Response, StatusCode};
-use serde_json::{Map, Value};
+use hyper::{body::Incoming, Request, Response, StatusCode};
 use log::{debug, error};
-use std::fmt::Write;
-use std::sync::{Arc, RwLock};
 use rust_embed::RustEmbed;
+use serde_json::{Map, Number, Value};
+use std::fmt::Write;
+use std::sync::Arc;
 
 struct Template {
     engine: Handlebars<'static>,
@@ -16,7 +16,8 @@ struct Template {
 
 impl Template {
     fn new<R>() -> DynResult<Template>
-        where R: RustEmbed
+    where
+        R: RustEmbed,
     {
         let mut engine = Handlebars::new();
         engine.register_embed_templates::<R>()?;
@@ -24,7 +25,7 @@ impl Template {
     }
 }
 
-pub fn error_response() -> DynResult<Response<Body>> {
+pub fn error_response() -> DynResult<DynResponse> {
     let resp = Response::builder()
         .header("Content-Type", "application/xhtml+xml")
         .status(StatusCode::INTERNAL_SERVER_ERROR);
@@ -43,40 +44,50 @@ pub fn error_response() -> DynResult<Response<Body>> {
     )?;
 
     writeln!(w, "</body></xhtml>")?;
-    let resp = resp.body(Body::from(w))?;
+    let resp = resp.body(Box::new(w) as DynBody)?;
     Ok(resp)
 }
 
-pub fn build_page<R>(tag_list: Arc<RwLock<TagList>>) -> DynResult<BuildPage>
-    where R:RustEmbed
+pub fn build_page<R>(device_def_list: Arc<DeviceDefList>) -> DynResult<BuildPage>
+where
+    R: RustEmbed,
 {
     let templates = Template::new::<R>()?;
 
-    Ok(Box::new(move |req: Request<Body>| {
+    Ok(Box::new(move |req: Request<Incoming>| {
         let template_name = req.uri().path().strip_prefix("/dyn/").unwrap();
 
         debug!("{template_name}");
-        let mut map = Map::new();
-        let tags = tag_list.read().unwrap();
-        map.insert(
-            "holding_registers".to_string(),
-            tag_list_json::build_register_list(&tags.holding_registers),
-        );
-	map.insert(
-            "input_registers".to_string(),
-            tag_list_json::build_register_list(&tags.input_registers),
-        );
-	map.insert(
-            "coils".to_string(),
-            tag_list_json::build_bit_list(&tags.coils),
-        );
-	map.insert(
-            "discrete_inputs".to_string(),
-            tag_list_json::build_bit_list(&tags.discrete_inputs),
-        );
-	
-	
-        let xml = match templates.engine.render(template_name, &Value::Object(map)) {
+        let mut device_list = Vec::new();
+        for device in device_def_list.devices() {
+            let mut tag_map = Map::new();
+            tag_map.insert(
+                "unit_addr".to_string(),
+                Value::Number(Number::from(device.addr)),
+            );
+            let tags = &device.tags;
+            tag_map.insert(
+                "holding_registers".to_string(),
+                tag_list_json::build_register_list(device.addr, &tags.holding_registers),
+            );
+            tag_map.insert(
+                "input_registers".to_string(),
+                tag_list_json::build_register_list(device.addr, &tags.input_registers),
+            );
+            tag_map.insert(
+                "coils".to_string(),
+                tag_list_json::build_bit_list(device.addr, &tags.coils),
+            );
+            tag_map.insert(
+                "discrete_inputs".to_string(),
+                tag_list_json::build_bit_list(device.addr, &tags.discrete_inputs),
+            );
+            device_list.push(Value::Object(tag_map));
+        }
+        let xml = match templates
+            .engine
+            .render(template_name, &Value::Array(device_list))
+        {
             Ok(x) => x,
             Err(e) => {
                 error!("Template engine failed: {e}");
@@ -86,6 +97,6 @@ pub fn build_page<R>(tag_list: Arc<RwLock<TagList>>) -> DynResult<BuildPage>
         let resp = Response::builder()
             .header("Content-Type", "application/xhtml+xml")
             .status(StatusCode::OK);
-        Ok(resp.body(Body::from(xml))?)
+        Ok(resp.body(Box::new(xml) as DynBody)?)
     }))
 }

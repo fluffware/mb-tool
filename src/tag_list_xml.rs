@@ -1,48 +1,30 @@
 use crate::encoding::{ByteOrder, Encoding, ValueType, WordOrder};
 use crate::presentation::Presentation;
 use crate::tag_list::{
-    Bit, BitOrGroup, Group, IntegerEnum, RegisterField, RegisterOrGroup, RegisterRange, TagList,
+    Bit, BitOrGroup, Group, IntegerEnum, RegisterField, RegisterOrGroup, RegisterRange, TagDefList,
 };
-use roxmltree::{Node, TextPos};
-use std::error::Error;
+use crate::xml_common::ParseErrorKind::UnexpectedElement;
+use crate::xml_common::{self, check_element_ns, optional_attribute, required_attribute};
+use roxmltree::Node;
+
 use std::num::ParseIntError;
 use std::str::{FromStr, ParseBoolError};
 
-const NS: &str = "http://www.elektro-kapsel.se/xml/modbus_config/v1";
+pub type ParseError = xml_common::ParseErrorBase<ParseErrorKind>;
 
-#[derive(Debug)]
-pub struct ParseError {
-    kind: ParseErrorKind,
-    pos: TextPos,
-}
-
-impl ParseError {
-    pub fn new(node: &Node, kind: ParseErrorKind) -> ParseError {
+impl From<xml_common::ParseError> for ParseError {
+    fn from(err: xml_common::ParseError) -> ParseError {
         ParseError {
-            pos: node.document().text_pos_at(node.range().start),
-            kind,
+            pos: err.pos,
+            kind: Base(err.kind),
         }
     }
 }
-
-impl std::error::Error for ParseError {}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "{}:{}: {}", self.pos.row, self.pos.col, self.kind)
-    }
-}
-
 use ParseErrorKind::*;
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
-    WrongNamespace,
-    UnexpectedElement,
-    UnexpectedText,
-    UnexpectedAttribute,
-    MissingAttribute(String),
-    ParseAttribute(String, Box<dyn Error + Send + Sync>),
+    Base(xml_common::ParseErrorKind),
     BitRange,
     InvalidByteOrder,
     InvalidWordOrder,
@@ -53,12 +35,7 @@ pub enum ParseErrorKind {
 impl std::fmt::Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
-            WrongNamespace => write!(f, "Incorrect namespace for element"),
-            UnexpectedElement => write!(f, "Unexpected element"),
-            UnexpectedText => write!(f, "Unexpected non-whitespace text"),
-            UnexpectedAttribute => write!(f, "Unexpected attribute"),
-            MissingAttribute(name) => write!(f, "Missing attribute '{name}'"),
-            ParseAttribute(name, err) => write!(f, "Failed to parse attribute '{name}': {err}"),
+            Base(base) => base.fmt(f),
             BitRange => write!(
                 f,
                 "Either use attribute 'bit' or both of 'bit-low' and 'bit-high'"
@@ -71,54 +48,6 @@ impl std::fmt::Display for ParseErrorKind {
                 "Attribute 'value-type' must be one of 'integer', 'float', or 'string'"
             ),
         }
-    }
-}
-
-fn check_element_ns(node: &Node) -> Result<bool, ParseError> {
-    if node.is_element() {
-        if node.tag_name().namespace() != Some(NS) {
-            return Err(ParseError::new(node, WrongNamespace));
-        }
-        return Ok(true);
-    } else if node.is_text() {
-        if let Some(text) = node.text() {
-            // Don't allow non-whitespace around elements
-            if text.find(|c: char| !c.is_whitespace()).is_some() {
-                return Err(ParseError::new(node, UnexpectedText));
-            }
-        }
-    }
-    Ok(false)
-}
-
-fn required_attribute<T>(node: &Node, name: &str) -> Result<T, ParseError>
-where
-    T: FromStr,
-    T::Err: std::error::Error + Send + Sync + 'static,
-{
-    let attr_str = node
-        .attribute(name)
-        .ok_or_else(|| ParseError::new(node, MissingAttribute(name.to_string())))?;
-    let res: Result<T, <T as FromStr>::Err> = attr_str.parse();
-    res.map_err(|e| ParseError::new(node, ParseAttribute(name.to_string(), e.into())))
-}
-
-fn optional_attribute<T>(node: &Node, name: &str) -> Result<Option<T>, ParseError>
-where
-    T: FromStr,
-    T::Err: std::error::Error + Send + Sync + 'static,
-{
-    let attr_str = match node.attribute(name) {
-        Some(v) => v,
-        None => return Ok(None),
-    };
-    let res: Result<T, <T as FromStr>::Err> = attr_str.parse();
-    match res {
-        Ok(res) => Ok(Some(res)),
-        Err(e) => Err(ParseError::new(
-            node,
-            ParseAttribute(name.to_string(), e.into()),
-        )),
     }
 }
 
@@ -218,7 +147,7 @@ pub fn parse_register_field(node: &Node) -> Result<RegisterField, ParseError> {
                     let enu = parse_enum(&child)?;
                     enums.push(enu);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement)),
+                _ => return Err(ParseError::new(&child, Base(UnexpectedElement))),
             }
         }
     }
@@ -259,7 +188,7 @@ pub fn parse_register(node: &Node) -> Result<RegisterRange, ParseError> {
                     let enu = parse_enum(&child)?;
                     enums.push(enu);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement)),
+                _ => return Err(ParseError::new(&child, Base(UnexpectedElement))),
             }
         }
     }
@@ -306,7 +235,7 @@ pub fn parse_registers_or_groups(parent: &Node) -> Result<Vec<RegisterOrGroup>, 
                     regs.push(RegisterOrGroup::Group(reg));
                 }
 
-                _ => return Err(ParseError::new(&child, UnexpectedElement)),
+                _ => return Err(ParseError::new(&child, Base(UnexpectedElement))),
             }
         }
     }
@@ -397,14 +326,14 @@ pub fn parse_bits_or_groups(parent: &Node) -> Result<Vec<BitOrGroup>, ParseError
                     bits.push(BitOrGroup::Group(g));
                 }
 
-                _ => return Err(ParseError::new(&child, UnexpectedElement)),
+                _ => return Err(ParseError::new(&child, Base(UnexpectedElement))),
             }
         }
     }
     Ok(bits)
 }
 
-pub fn parse_tag_list(node: &Node) -> Result<TagList, ParseError> {
+pub fn parse_tag_list(node: &Node) -> Result<TagDefList, ParseError> {
     let mut holding_registers = None;
     let mut input_registers = None;
     let mut discrete_inputs = None;
@@ -428,11 +357,11 @@ pub fn parse_tag_list(node: &Node) -> Result<TagList, ParseError> {
                     let bits = parse_bits_or_groups(&child)?;
                     coils = Some(bits);
                 }
-                _ => return Err(ParseError::new(&child, UnexpectedElement)),
+                _ => return Err(ParseError::new(&child, Base(UnexpectedElement))),
             }
         }
     }
-    Ok(TagList {
+    Ok(TagDefList {
         holding_registers: holding_registers.unwrap_or_default(),
         input_registers: input_registers.unwrap_or_default(),
         discrete_inputs: discrete_inputs.unwrap_or_default(),
@@ -443,11 +372,12 @@ pub fn parse_tag_list(node: &Node) -> Result<TagList, ParseError> {
 #[cfg(test)]
 use roxmltree::Document;
 
+
 #[test]
 fn parse_register_test() -> Result<(), ParseError> {
     let doc = Document::parse(
         r#"
-    <holding-registers xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v1">
+    <holding-registers xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v2">
     <register addr="0" label="Reg 0">
         <field bit="0" label="0.0" />
         <field bit-low="1" bit-high="8" label="0.1-8" />
@@ -458,16 +388,22 @@ fn parse_register_test() -> Result<(), ParseError> {
     )
     .unwrap();
 
-    let regs = parse_registers(&doc.root().first_child().unwrap())?;
-    assert_eq!(regs[0].address_low, 0);
-    assert_eq!(regs[0].label, Some("Reg 0".to_string()));
-    assert_eq!(regs[0].fields[0].bit_low, 0);
-    assert_eq!(regs[0].fields[0].bit_high, 0);
-    assert_eq!(regs[0].fields[1].bit_low, 1);
-    assert_eq!(regs[0].fields[1].bit_high, 8);
+    let regs_or_groups = parse_registers_or_groups(&doc.root().first_child().unwrap())?;
+    let RegisterOrGroup::Tag(reg) = &regs_or_groups[0] else {
+        panic!("Not a tag");
+    };
+    assert_eq!(reg.address_low, 0);
+    assert_eq!(reg.label, Some("Reg 0".to_string()));
+    assert_eq!(reg.fields[0].bit_low, 0);
+    assert_eq!(reg.fields[0].bit_high, 0);
+    assert_eq!(reg.fields[1].bit_low, 1);
+    assert_eq!(reg.fields[1].bit_high, 8);
 
-    assert_eq!(regs[1].address_low, 1);
-    assert_eq!(regs[1].label, Some("Reg 1".to_string()));
-    assert!(regs[1].fields.is_empty());
+    let RegisterOrGroup::Tag(reg) = &regs_or_groups[1] else {
+        panic!("Not a tag");
+    };
+    assert_eq!(reg.address_low, 1);
+    assert_eq!(reg.label, Some("Reg 1".to_string()));
+    assert!(reg.fields.is_empty());
     Ok(())
 }

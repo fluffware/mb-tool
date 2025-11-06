@@ -1,43 +1,70 @@
 function swap_bytes(value, swap) {
     if (swap) {
         return ((value & 0x00ff) << 8) | ((value & 0xff00) >> 8);
+    }
+    return value;
+}
+
+
+function u16_to_dataview(values, first, last, byte_le, word_le) {
+    let l = last - first +1;
+    let b = new ArrayBuffer(l * 2);
+    let v = new DataView(b);
+    if (word_le) {
+	for (let i = 0; i < l; i++) {
+	    v.setUint16((l-i-1)*2, values[first + i], byte_le);
+	}
     } else {
-        return value;
+	for (let i = 0; i < l; i++) {
+	    v.setUint16(i*2, values[first + i], byte_le);
+	}
+    }
+    return v;
+}
+
+function dataview_to_u16(dv, values, first, last, byte_le, word_le) {
+    let l = last - first +1;
+    if (word_le) {
+	for (let i = 0; i < l; i++) {
+	    values[first + i] = dv.getUint16((l-i-1)*2,  byte_le);
+	}
+    } else {
+	for (let i = 0; i < l; i++) {
+	    values[first + i] = dv.getUint16(i*2, byte_le);
+	}
     }
 }
 
-function u16_to_u32_swapped(words, swap_bytes, low_word_first) {
-    let u32;
-    if (low_word_first) {
-        u32 = words[0] | words[1] << 16;
-    } else {
-        u32 = words[1] | words[0] << 16;
-    }
-    if (swap_bytes) {
-        u32 = ((u32 & 0x00ff00ff) << 8) | ((u32 & 0xff00ff00) >> 8);
-    }
-    return u32;
+
+	    
+function start_int(mb_values, addr, swap, signed) {
+    let word = mb_values[addr] || 0;
+        if (swap) word = swap16(word);
+    if (signed && word >= 32768) word -= 65536;
+    return BigInt(word);
 }
+    
+function acc_int(mb_values, sum, addr, swap) {
+    let word = mb_values[addr] || 0;
+    if (swap) word = swap16(word);
 
-function u32_to_u16_swapped(u32, swap_bytes, low_word_first) {
-
-    if (swap_bytes) {
-        u32 = ((u32 & 0x00ff00ff) << 8) | ((u32 & 0xff00ff00) >> 8);
-    }
-    let words;
-    if (low_word_first) {
-        words = [u32 & 0xffff, (u32 >> 16) & 0xffff];
-    } else {
-        words = [(u32 >> 16) & 0xffff, u32 & 0xffff];
-    }
-
-    return words;
+    return sum * BigInt(65536) + BigInt(word);
 }
+    
+
 class RegisterAreaUpdater {
-    value_map = new RangeDict();
-    mb_values = [];
+    devices={};
+    //value_map = new RangeDict();
+    //mb_values = [];
     focusedElement = null;
-
+    get_device(unit_addr) {
+	let dev = this.devices[unit_addr];
+	if (dev == null) {
+	    dev = {value_map: new RangeDict(), mb_values: []};
+	    this.devices[unit_addr] = dev;
+	}
+	return dev;
+    }
     constructor(parent, send) {
         this.send = send;
         {
@@ -49,9 +76,11 @@ class RegisterAreaUpdater {
         for (let v of values) {
             let addr_low = parseInt(v.getAttributeNS(MB_NS, "addr-low"));
             let addr_high = parseInt(v.getAttributeNS(MB_NS, "addr-high"));
-            this.value_map.insert(addr_low, addr_high + 1, v);
+            let unit_addr = parseInt(v.getAttributeNS(MB_NS, "unit-addr"));
+	    let dev = this.get_device(unit_addr);
+            dev.value_map.insert(addr_low, addr_high + 1, v);
             let inp = v;
-            let mb_values = this.mb_values;
+            let mb_values = dev.mb_values;
             let updater = this;
             v.addEventListener("change", function (e) {
                 let low = inp.getAttributeNS(MB_NS, "bit-low");
@@ -91,7 +120,8 @@ class RegisterAreaUpdater {
 
                             }
                             if (typeof value == "number") value = Math.round(value);
-                            let byte_swap = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+			    let byte_le =inp.getAttributeNS(MB_NS, "byte-order") == "little";
+                            let byte_swap = this.nativeBigEndian == byte_le; 
                             let word_order = inp.getAttributeNS(MB_NS, "word-order");
                             value = BigInt(value);
                             console.log("Changed value: " + value);
@@ -113,24 +143,18 @@ class RegisterAreaUpdater {
                     case "float":
                         {
                             let byte_le = inp.getAttributeNS(MB_NS, "byte-order") == "little";
+			    let byte_swap = this.nativeBigEndian == byte_le;
                             let word_le = inp.getAttributeNS(MB_NS, "word-order") == "little";
                             let word_count = addr_high - addr_low + 1;
                             let value = Number(e.target.value);
                             if (word_count == 2) {
-                                let f = new Float32Array([value]);
-                                let b = new Uint32Array(f.buffer, f.byteOffset, 1);
-                                mb_values.splice(addr_low, 2, ...u32_to_u16_swapped(b[0], byte_le, word_le));
+				let dv = new DataView(new ArrayBuffer(4));
+				dv.setFloat32(0,value);
+				dataview_to_u16(dv, mb_values, addr_low, addr_high, byte_le, word_le);
                             } else if (word_count == 4) {
-                                let f = new Float64Array([value]);
-                                let b = new Uint32Array(f.buffer, f.byteOffset, 2);
-                                if (this.nativeBigEndian == word_le) {
-                                    let tmp = b[0];
-                                    b[0] = b[1];
-                                    b[1] = tmp;
-                                }
-                                mb_values.splice(addr_low, 4,
-                                    ... u32_to_u16_swapped(b[0], byte_le, word_le),
-                                    ... u32_to_u16_swapped(b[1], byte_le, word_le));
+				let dv = new DataView(new ArrayBuffer(8));
+				dv.setFloat64(0,value);
+				dataview_to_u16(dv, mb_values, addr_low, addr_high, byte_le, word_le);
                             }
                         }
                         break;
@@ -155,45 +179,37 @@ class RegisterAreaUpdater {
                         break;
                 }
                 updater.send({
+		    unit_addr: unit_addr,
                     start: addr_low,
                     regs: mb_values.slice(addr_low, addr_high + 1)
                 });
-                updater.update_range(addr_low, addr_high);
+                updater.update_range(unit_addr, addr_low, addr_high);
             });
             v.addEventListener("focus", function (e) {
                 updater.focusedElement = inp;
             });
             v.addEventListener("blur", function (e) {
                 updater.focusedElement = null;
-                updater.update_range(addr_low, addr_high);
+                updater.update_range(unit_addr, addr_low, addr_high);
             });
 
         }
     }
 
-    update_values(addr, v) {
-	while(addr > this.mb_values.length) this.mb_values.push(0);
-        this.mb_values.splice(addr, v.length, ...v);
-        this.update_range(addr, addr + v.length - 1)
+    update_values(unit_addr, addr, v) {
+	let dev = this.get_device(unit_addr);
+	while(addr > dev.mb_values.length) dev.mb_values.push(0);
+        dev.mb_values.splice(addr, v.length, ...v);
+        this.update_range(unit_addr, addr, addr + v.length - 1)
     }
 
     static swap16(v) {
         return ((v >> 8) & 0xff)((v & 0xff) << 8);
     }
-    start_int(addr, swap, signed) {
-        let word = this.mb_values[addr] || 0;
-        if (swap) word = swap16(word);
-        if (signed && word >= 32768) word -= 65536;
-        return BigInt(word);
-    }
-    acc_int(sum, addr, swap) {
-        let word = this.mb_values[addr] || 0;
-        if (swap) word = swap16(word);
-
-        return sum * BigInt(65536) + BigInt(word);
-    }
-    update_range(addr_low, addr_high) {
-        let updates = this.value_map.overlapping(addr_low, addr_high + 1);
+    
+    update_range(unit_addr, addr_low, addr_high) {
+	let dev = this.get_device(unit_addr);
+        let updates = dev.value_map.overlapping(addr_low, addr_high + 1);
 
         for (let update of updates) {
             let inp = update.value;
@@ -209,14 +225,14 @@ class RegisterAreaUpdater {
                             let word_order = inp.getAttributeNS(MB_NS, "word-order");
                             let value;
                             if (word_order == "little") {
-                                value = this.start_int(addr_high, byte_swap, signed);
+                                value = start_int(dev.mb_values, addr_high, byte_swap, signed);
                                 for (let a = addr_high - 1; a >= addr_low; a--) {
-                                    value = this.acc_int(value, a, byte_swap);
+                                    value = acc_int(dev.mb_values, value, a, byte_swap);
                                 }
                             } else {
-                                value = this.start_int(addr_low, byte_swap, signed);
+                                value = start_int(dev.mb_values, addr_low, byte_swap, signed);
                                 for (let a = addr_low + 1; a <= addr_high; a++) {
-                                    value = this.acc_int(value, a, byte_swap);
+                                    value = acc_int(dev.mb_values, value, a, byte_swap);
                                 }
                             }
                             let low = inp.getAttributeNS(MB_NS, "bit-low");
@@ -263,25 +279,12 @@ class RegisterAreaUpdater {
                         {
                             let byte_le = inp.getAttributeNS(MB_NS, "byte-order") == "little";
                             let word_le = inp.getAttributeNS(MB_NS, "word-order") == "little";
+			    let view = u16_to_dataview(dev.mb_values, addr_low, addr_high, byte_le, word_le)
                             let word_count = addr_high - addr_low + 1;
                             if (word_count == 2) {
-                                let u32 = u16_to_u32_swapped(this.mb_values.slice(addr_low, addr_low + 2), byte_le, word_le);
-                                let b = new Uint32Array([u32]);
-                                let f = new Float32Array(b.buffer, b.byteOffset, 1);
-                                inp.value = f[0];
+                                inp.value = view.getFloat32(0);
                             } else if (word_count == 4) {
-                                let u32 = [
-                                    u16_to_u32_swapped(this.mb_values.slice(addr_low, addr_low + 2), byte_le, word_le),
-                                    u16_to_u32_swapped(this.mb_values.slice(addr_low + 2, addr_low + 4), byte_le, word_le)
-                                ];
-                                if (this.nativeBigEndian == word_le) {
-                                    let tmp = u32[0];
-                                    u32[0] = u32[1];
-                                    u32[1] = tmp;
-                                }
-                                let b = new Uint32Array(u32);
-                                let f = new Float64Array(b.buffer, b.byteOffset, 1);
-                                inp.value = f[0];
+                                inp.value = view.getFloat64(0);
                             }
                         }
                         break;
@@ -292,7 +295,7 @@ class RegisterAreaUpdater {
                         let end = null;
                         for (let a = addr_low; a <= addr_high; a++) {
 
-                            let w = this.mb_values[a];
+                            let w = dev.mb_values[a];
                             let first;
                             let second;
                             if (low_first) {
@@ -330,50 +333,64 @@ class RegisterAreaUpdater {
 }
 
 class BitAreaUpdater {
-    value_map = new RangeDict();
-    mb_values = [];
+  
     focusedElement = null;
-
+    devices={};
+    
+    focusedElement = null;
+    get_device(unit_addr) {
+	let dev = this.devices[unit_addr];
+	if (dev == null) {
+	    dev = {value_map: new RangeDict(), mb_values: []};
+	    this.devices[unit_addr] = dev;
+	}
+	return dev;
+    }
     constructor(parent, send) {
         this.send = send;
 
         var values = parent.getElementsByClassName("mb_value");
         for (let v of values) {
             let addr = parseInt(v.getAttributeNS(MB_NS, "addr"));
-            this.value_map.insert(addr, addr + 1, v);
+	    let unit_addr = parseInt(v.getAttributeNS(MB_NS, "unit-addr"));
+	    let dev = this.get_device(unit_addr);
+            dev.value_map.insert(addr, addr + 1, v);
             let inp = v;
-            let mb_values = this.mb_values;
+            let mb_values = dev.mb_values;
             let updater = this;
             v.addEventListener("change", function (e) {
                 if (inp.type == "checkbox") {
                     mb_values[addr] = e.target.checked;
                 }                
                 updater.send({
+		    unit_addr: unit_addr,
                     start: addr,
                     regs: mb_values.slice(addr, addr + 1)
                 });
-                updater.update_range(addr, addr+1);
+                updater.update_range(unit_addr, addr, addr+1);
             });
             v.addEventListener("focus", function (e) {
                 updater.focusedElement = inp;
             });
             v.addEventListener("blur", function (e) {
                 updater.focusedElement = null;
-                updater.update_range(addr, addr+1);
+                updater.update_range(unit_addr, addr, addr+1);
             });
 
         }
     }
 
-    update_values(addr, v) {
-	while(addr > this.mb_values.length) this.mb_values.push(0);
-        this.mb_values.splice(addr, v.length, ...v);
-        this.update_range(addr, addr + v.length - 1)
+    update_values(unit_addr, addr, v) {
+	let dev = this.get_device(unit_addr);
+	while(addr > dev.mb_values.length) dev.mb_values.push(0);
+        dev.mb_values.splice(addr, v.length, ...v);
+        this.update_range(unit_addr, addr, addr + v.length - 1)
     }
 
  
-    update_range(addr_low, addr_high) {
-        let updates = this.value_map.overlapping(addr_low, addr_high + 1);
+    update_range(unit_addr, addr_low, addr_high) {
+	let dev = this.get_device(unit_addr);
+        let updates = dev.value_map.overlapping(addr_low, addr_high + 1);
 
         for (let update of updates) {
             let inp = update.value;
@@ -381,7 +398,7 @@ class BitAreaUpdater {
                 let addr= parseInt(inp.getAttributeNS(MB_NS, "addr"));
                 if (inp.localName == "input") {
                     if (inp.type == "checkbox") {
-                        inp.checked = Number(this.mb_values[addr]);
+                        inp.checked = Number(dev.mb_values[addr]);
                     }
 		}
             }
@@ -476,19 +493,23 @@ function setup() {
         let cmd = JSON.parse(msg.data);
         let holding_registers = cmd.UpdateHoldingRegs;
         if (holding_registers && holding_regs) {
-            holding_regs.update_values(holding_registers.start, holding_registers.regs);
+            holding_regs.update_values(holding_registers.unit_addr,
+				       holding_registers.start, holding_registers.regs);
         }
         let input_registers = cmd.UpdateInputRegs;
         if (input_registers && input_regs) {
-            input_regs.update_values(input_registers.start, input_registers.regs);
+            input_regs.update_values(input_registers.unit_addr, 
+				     input_registers.start, input_registers.regs);
         }
 	let update_coils = cmd.UpdateCoils;
         if (update_coils && coils) {
-            coils.update_values(update_coils.start, update_coils.regs);
+            coils.update_values(update_coils.unit_addr,
+				update_coils.start, update_coils.regs);
         }
 	let update_discrete_inputs = cmd.UpdateDiscreteInputs;
         if (update_discrete_inputs && discrete_inputs) {
-            discrete_inputs.update_values(update_discrete_inputs.start, update_discrete_inputs.regs);
+            discrete_inputs.update_values(update_discrete_inputs.unit_addr,
+					  update_discrete_inputs.start, update_discrete_inputs.regs);
         }
 
 	let echo_reply = cmd.Echo;
@@ -500,8 +521,36 @@ function setup() {
 		}, 500);
 	    }
 	}
-    };
 
+	let unit_addresses = cmd.ListUnitAddresses;
+        if (unit_addresses) {
+	    console.log("Units: "+unit_addresses);
+	    for (u of unit_addresses) {
+		ws.send(JSON.stringify({ RequestHoldingRegs: {unit_addr: u,
+							      start: 0, length: 32768 } }))
+		ws.send(JSON.stringify({ RequestHoldingRegs: {unit_addr: u,
+							      start: 32768, length: 32768 } }))
+		ws.send(JSON.stringify({ RequestInputRegs: {unit_addr: u,
+							    start: 0, length: 32768 } }))
+		ws.send(JSON.stringify({ RequestInputRegs: {unit_addr: u,
+							    start: 32768, length: 32768 } }))
+		
+		ws.send(JSON.stringify({ RequestCoils: {unit_addr: u,
+							start: 0, length: 32768 } }))
+		ws.send(JSON.stringify({ RequestCoils: {unit_addr: u,
+							start: 32768, length: 32768 } }))
+		
+		ws.send(JSON.stringify({ RequestDiscreteInputs: {unit_addr: u,
+								 start: 0, length: 32768 } }))
+		ws.send(JSON.stringify({ RequestDiscreteInputs: {unit_addr: u,
+								 start: 32768, length: 32768 } }))
+	    }
+	}
+    };
+    ws.onopen = () => {
+	ws.send(JSON.stringify({ ListUnitAddresses: [] }))
+    };
+	/*
     ws.onopen = () => {
         ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 32768 } }))
         ws.send(JSON.stringify({ RequestHoldingRegs: { start: 32768, length: 32768 } }))
@@ -513,5 +562,5 @@ function setup() {
 	
 	ws.send(JSON.stringify({ RequestDiscreteInputs: { start: 0, length: 32768 } }))
         ws.send(JSON.stringify({ RequestDiscreteInputs: { start: 32768, length: 32768 } }))
-    };
+    };*/
 }

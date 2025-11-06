@@ -10,6 +10,7 @@
 		 {{~/if~}}
 		 "
 	   class="mb_value"
+	   mb:unit-addr="{{unit_addr}}"
 	   mb:addr-low="{{addr_low}}"  mb:addr-high="{{addr_high}}"
 	   {{#if value_type}}mb:value-type="{{value_type}}"{{/if}}
   {{#if scale}}mb:scale="{{scale}}"{{/if}}
