@@ -2,7 +2,6 @@ use crate::error::DynResult;
 use crate::observable_array::ObservableArray;
 use crate::tag_ranges::TagRanges;
 use crate::tags::Tags;
-use bytes::Bytes;
 #[allow(unused_imports)]
 use log::{debug, error};
 use std::fmt::Debug;
@@ -11,6 +10,8 @@ use std::net::SocketAddr;
 use std::ops::Range;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use tokio::time::{self, Duration};
 use tokio_modbus::client::Reader;
 use tokio_modbus::client::Writer;
@@ -18,8 +19,10 @@ use tokio_modbus::client::{rtu, tcp, Context};
 use tokio_modbus::server::rtu::Server as RtuServer;
 use tokio_modbus::server::tcp::Server as TcpServer;
 use tokio_modbus::slave::Slave;
+use tokio_modbus::ExceptionCode;
 use tokio_serial::SerialStream;
 
+/*
 fn err_resp(
     req: &tokio_modbus::prelude::Request,
     exception: u8,
@@ -32,6 +35,7 @@ fn err_resp(
 
 const ILLEGAL_FUNCTION: u8 = 1;
 const ILLEGAL_DATA_ADDRESS: u8 = 2;
+ */
 
 struct ModbusService {
     tags: Tags,
@@ -48,8 +52,8 @@ fn server_read<T, F>(
     start: u16,
     count: u16,
     f: F,
-    req: &tokio_modbus::prelude::Request,
-) -> Result<tokio_modbus::prelude::Response, std::io::Error>
+    _req: &tokio_modbus::prelude::Request,
+) -> Result<tokio_modbus::prelude::Response, ExceptionCode>
 where
     F: FnOnce(Vec<T>) -> tokio_modbus::prelude::Response,
     T: Default + Clone,
@@ -59,7 +63,7 @@ where
             let reg_slice = &r[(start as usize)..(start + count) as usize];
             Ok(f(reg_slice.to_vec()))
         } else {
-            Ok(err_resp(req, ILLEGAL_DATA_ADDRESS))
+            Err(ExceptionCode::IllegalDataAddress)
         }
     })
 }
@@ -69,8 +73,8 @@ fn server_write<T, F>(
     start: u16,
     data: &[T],
     f: F,
-    req: &tokio_modbus::prelude::Request,
-) -> Result<tokio_modbus::prelude::Response, std::io::Error>
+    _req: &tokio_modbus::prelude::Request,
+) -> Result<tokio_modbus::prelude::Response, ExceptionCode>
 where
     F: FnOnce(u16, &[T]) -> tokio_modbus::prelude::Response,
     T: Default + Clone,
@@ -79,82 +83,85 @@ where
         array.update(start as usize, data);
         Ok(f(start, data))
     } else {
-        Ok(err_resp(req, ILLEGAL_DATA_ADDRESS))
+        Err(ExceptionCode::IllegalDataAddress)
     }
 }
 
 impl tokio_modbus::server::Service for ModbusService {
-    type Request = tokio_modbus::prelude::Request;
+    type Request = tokio_modbus::prelude::SlaveRequest<'static>;
     type Response = tokio_modbus::prelude::Response;
-    type Error = std::io::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + Sync>>;
+    type Exception = ExceptionCode;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Exception>> + Send + Sync>>;
 
     fn call(&self, req: Self::Request) -> Self::Future {
-        let resp = match req {
-            Self::Request::ReadHoldingRegisters(start, count) => server_read(
+        use tokio_modbus::prelude::Request::*;
+        let resp = match req.request {
+            ReadHoldingRegisters(start, count) => server_read(
                 &self.tags.holding_registers,
                 start,
                 count,
                 |reply| Self::Response::ReadHoldingRegisters(reply),
-                &req,
+                &req.request,
             ),
-            Self::Request::WriteSingleRegister(addr, value) => server_write(
+            WriteSingleRegister(addr, value) => server_write(
                 &self.tags.holding_registers,
                 addr,
                 &[value],
                 |addr, data| Self::Response::WriteSingleRegister(addr, data[0]),
-                &req,
+                &req.request,
             ),
-            Self::Request::WriteMultipleRegisters(addr, ref value) => server_write(
+            WriteMultipleRegisters(addr, ref value) => server_write(
                 &self.tags.holding_registers,
                 addr,
                 value,
                 |addr, data| Self::Response::WriteMultipleRegisters(addr, data.len() as u16),
-                &req,
+                &req.request,
             ),
-            Self::Request::ReadInputRegisters(start, count) => server_read(
+            ReadInputRegisters(start, count) => server_read(
                 &self.tags.input_registers,
                 start,
                 count,
                 |reply| Self::Response::ReadInputRegisters(reply),
-                &req,
+                &req.request,
             ),
 
-            Self::Request::ReadCoils(start, count) => server_read(
+            ReadCoils(start, count) => server_read(
                 &self.tags.coils,
                 start,
                 count,
                 |reply| Self::Response::ReadCoils(reply),
-                &req,
+                &req.request,
             ),
-            Self::Request::WriteSingleCoil(addr, value) => server_write(
+            WriteSingleCoil(addr, value) => server_write(
                 &self.tags.coils,
                 addr,
                 &[value],
                 |addr, data| Self::Response::WriteSingleCoil(addr, data[0]),
-                &req,
+                &req.request,
             ),
-            Self::Request::WriteMultipleCoils(addr, ref value) => server_write(
+            WriteMultipleCoils(addr, ref value) => server_write(
                 &self.tags.coils,
                 addr,
                 value,
                 |addr, data| Self::Response::WriteMultipleCoils(addr, data.len() as u16),
-                &req,
+                &req.request,
             ),
-            Self::Request::ReadDiscreteInputs(start, count) => server_read(
+            ReadDiscreteInputs(start, count) => server_read(
                 &self.tags.discrete_inputs,
                 start,
                 count,
                 |reply| Self::Response::ReadDiscreteInputs(reply),
-                &req,
+                &req.request,
             ),
-            _ => Ok(err_resp(&req, ILLEGAL_FUNCTION)),
+            _ => Err(ExceptionCode::IllegalFunction),
         };
 
         Box::pin(future::ready(resp))
     }
 }
 
+/*
 struct ModbusNewService {
     tags: Tags,
 }
@@ -166,7 +173,7 @@ impl ModbusNewService {
 }
 
 impl tokio_modbus::server::NewService for ModbusNewService {
-    type Request = tokio_modbus::prelude::Request;
+    type Request = tokio_modbus::prelude::SlaveRequest<'static>;
     type Response = tokio_modbus::prelude::Response;
     type Error = std::io::Error;
     type Instance = ModbusService;
@@ -175,16 +182,23 @@ impl tokio_modbus::server::NewService for ModbusNewService {
         Ok(ModbusService::new(self.tags.clone()))
     }
 }
-
+*/
 #[derive(Clone)]
 pub struct ModbusOptions {
     pub poll_interval: Duration,
 }
 
 pub async fn server_tcp(socket: SocketAddr, tags: Tags, _options: ModbusOptions) -> DynResult<()> {
-    let server = TcpServer::new(socket);
-    let service = ModbusNewService::new(tags);
-    match server.serve(service).await {
+    let listener = TcpListener::bind(socket).await?;
+    let server = TcpServer::new(listener);
+    let on_connected = async |stream: TcpStream, _addr: SocketAddr| {
+        Ok(Some((ModbusService::new(tags.clone()), stream)))
+    };
+    let on_process_error = |error| {
+        error!("Process error: {}", error);
+    };
+
+    match server.serve(&on_connected, on_process_error).await {
         Ok(_) => Ok(()),
         Err(e) => Err(Box::new(e)),
     }
@@ -197,8 +211,8 @@ pub async fn server_rtu(
     _options: ModbusOptions,
 ) -> DynResult<()> {
     let server = RtuServer::new(ser);
-    let service = ModbusNewService::new(tags);
-    server.serve_forever(service).await;
+    let service = ModbusService::new(tags);
+    let _ = server.serve_forever(service).await;
     Ok(())
 }
 
@@ -228,9 +242,10 @@ impl ClientOp {
                 )
                 .await
                 {
-                    Ok(Ok(data)) => {
+                    Ok(Ok(Ok(data))) => {
                         tags.holding_registers.update(*start as usize, &data);
                     }
+                    Ok(Ok(Err(e))) => return Err(e.into()),
                     Ok(Err(e)) => return Err(e.into()),
                     Err(e) => return Err(e.into()),
                 }
@@ -253,9 +268,10 @@ impl ClientOp {
                 )
                 .await
                 {
-                    Ok(Ok(data)) => {
+                    Ok(Ok(Ok(data))) => {
                         tags.input_registers.update(*start as usize, &data);
                     }
+                    Ok(Ok(Err(e))) => return Err(e.into()),
                     Ok(Err(e)) => return Err(e.into()),
                     Err(e) => return Err(e.into()),
                 }
@@ -263,9 +279,10 @@ impl ClientOp {
             ClientOp::ReadCoils(start, length) => {
                 match tokio::time::timeout(CLIENT_TIMEOUT, client.read_coils(*start, *length)).await
                 {
-                    Ok(Ok(data)) => {
+                    Ok(Ok(Ok(data))) => {
                         tags.coils.update(*start as usize, &data);
                     }
+                    Ok(Ok(Err(e))) => return Err(e.into()),
                     Ok(Err(e)) => return Err(e.into()),
                     Err(e) => return Err(e.into()),
                 }
@@ -288,9 +305,10 @@ impl ClientOp {
                 )
                 .await
                 {
-                    Ok(Ok(data)) => {
+                    Ok(Ok(Ok(data))) => {
                         tags.discrete_inputs.update(*start as usize, &data);
                     }
+                    Ok(Ok(Err(e))) => return Err(e.into()),
                     Ok(Err(e)) => return Err(e.into()),
                     Err(e) => return Err(e.into()),
                 }
@@ -369,9 +387,9 @@ async fn client_poll(
             .holding_registers
             .get_array(|r| Vec::from(&r[start..start + length]));
                         if length == 1 {
-                client.write_single_register(start as u16, data[0]).await?;
+                client.write_single_register(start as u16, data[0]).await??;
                         } else {
-                client.write_multiple_registers(start as u16, &data).await?;
+                client.write_multiple_registers(start as u16, &data).await??;
                         }
         }
             }
@@ -383,9 +401,9 @@ async fn client_poll(
             .coils
             .get_array(|r| Vec::from(&r[start..start + length]));
                         if length == 1 {
-                client.write_single_coil(start as u16, data[0]).await?;
+                client.write_single_coil(start as u16, data[0]).await??;
                         } else {
-                client.write_multiple_coils(start as u16, &data).await?;
+                client.write_multiple_coils(start as u16, &data).await??;
                         }
         }
             }
@@ -403,7 +421,7 @@ pub async fn client_rtu<T>(
 where
     T: AsyncRead + AsyncWrite + Debug + Unpin + Send + 'static,
 {
-    let mut ctxt = rtu::connect_slave(ser, slave).await?;
+    let mut ctxt = rtu::attach_slave(ser, slave);
     client_poll(&mut ctxt, &mut tags, &ranges, &options).await?;
     Ok(())
 }
