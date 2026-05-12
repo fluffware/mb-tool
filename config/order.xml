@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <tag-list xmlns="http://www.elektro-kapsel.se/xml/modbus_config/v2">
-  <device addr="1">
+  <device addr="12">
     <holding-registers>
       <group base-addr="0" label="f64">
 	<register-range addr-low="0" addr-high="3"  label="BL WL" value-type="float" initial-value="0.33" byte-order="little" word-order="little"/>

@@ -1,7 +1,7 @@
 use crate::device_list::{DeviceDef, DeviceDefList};
 use crate::tag_list_xml::{self, parse_tag_list};
 use crate::xml_common::ParseErrorKind::UnexpectedElement;
-use crate::xml_common::{self, check_element_ns, required_attribute};
+use crate::xml_common::{self, check_element_ns, optional_attribute, required_attribute};
 use roxmltree::Node;
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -37,10 +37,7 @@ impl std::fmt::Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self {
             Base(base) => base.fmt(f),
-            DuplicateAddr => write!(
-                f,
-                "A device with the same address already configured"
-            ),
+            DuplicateAddr => write!(f, "A device with the same address already configured"),
         }
     }
 }
@@ -66,9 +63,14 @@ impl From<ParsedU8> for u8 {
 
 fn parse_device(node: &Node) -> Result<DeviceDef, ParseError> {
     let addr = required_attribute::<ParsedU8>(node, "addr")?.into();
+    let cyclic_write = optional_attribute::<bool>(node, "cyclic-write")?.unwrap_or(false);
     let tags = parse_tag_list(node)?;
 
-    Ok(DeviceDef { addr, tags })
+    Ok(DeviceDef {
+        addr,
+        cyclic_write,
+        tags,
+    })
 }
 
 pub fn parse_device_list(node: &Node) -> Result<DeviceDefList, ParseError> {
@@ -84,7 +86,7 @@ pub fn parse_device_list(node: &Node) -> Result<DeviceDefList, ParseError> {
                     return Err(ParseError::new(
                         &child,
                         Base(tag_list_xml::ParseErrorKind::Base(UnexpectedElement)),
-                    ))
+                    ));
                 }
             }
         }

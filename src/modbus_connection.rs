@@ -41,11 +41,13 @@ fn server_read<T, F>(
 ) -> Result<tokio_modbus::prelude::Response, ExceptionCode>
 where
     F: FnOnce(Vec<T>) -> tokio_modbus::prelude::Response,
-    T: Default + Clone + Send + Sync + 'static,
+    T: Default + Clone + Send + Sync + Debug + 'static,
 {
     array.get_array(|r| {
         if start as usize + count as usize <= array.len() {
             let reg_slice = &r[(start as usize)..(start + count) as usize];
+            debug!("Got data {:?}", reg_slice);
+
             Ok(f(reg_slice.to_vec()))
         } else {
             Err(ExceptionCode::IllegalDataAddress)
@@ -87,6 +89,7 @@ impl tokio_modbus::server::Service for ModbusService {
         } = sreq;
         let resp = match req {
             ReadHoldingRegisters(start, count) => self.devices.tags_read(unit, |tags| {
+                debug!("Read holding registers: {} {}", unit, start);
                 server_read(
                     &tags.holding_registers,
                     start,
@@ -206,110 +209,128 @@ pub async fn server_rtu(
 
 enum ClientOp {
     ReadHoldingRegisters(u8, u16, u16),
-    //WriteHoldingRegisters(u16, u16),
+    WriteHoldingRegisters(u8, u16, u16),
     ReadInputRegisters(u8, u16, u16),
     ReadCoils(u8, u16, u16),
-    //WriteCoils(u16, u16),
+    WriteCoils(u8, u16, u16),
     ReadDiscreteInputs(u8, u16, u16),
 }
 
 const READ_BITS_MAX_LEN: u16 = 2000;
 const READ_REGISTERS_MAX_LEN: u16 = 125;
-//const WRITE_REGISTERS_MAX_LEN: u16 = 123;
-//const WRITE_BITS_MAX_LEN: u16 = 1968;
+const WRITE_REGISTERS_MAX_LEN: u16 = 123;
+const WRITE_BITS_MAX_LEN: u16 = 1968;
 
 const CLIENT_TIMEOUT: Duration = Duration::from_millis(500);
 
+async fn timed_read_op<'a, R, F>(client: &'a mut Context, unit: u8, op: F) -> DynResult<R>
+where
+    F: FnOnce(
+        &'a mut Context,
+    ) -> Pin<Box<dyn Future<Output = tokio_modbus::Result<R>> + 'a + Send>>,
+{
+    match tokio::time::timeout(CLIENT_TIMEOUT, {
+        client.set_slave(Slave(unit));
+        op(client)
+    })
+    .await
+    {
+        Ok(Ok(Ok(data))) => Ok(data),
+        Ok(Ok(Err(code))) => Err(code.into()),
+        Ok(Err(e)) => Err(e.into()),
+        Err(e) => Err(e.into()),
+    }
+}
+async fn timed_write_op<'a, F>(client: &'a mut Context, unit: u8, op: F) -> DynResult<()>
+where
+    F: FnOnce(
+        &'a mut Context,
+    ) -> Pin<Box<dyn Future<Output = tokio_modbus::Result<()>> + 'a + Send>>,
+{
+    match tokio::time::timeout(CLIENT_TIMEOUT, {
+        client.set_slave(Slave(unit));
+        op(client)
+    })
+    .await
+    {
+        Ok(Ok(Ok(data))) => Ok(data),
+        Ok(Ok(Err(code))) => Err(code.into()),
+        Ok(Err(e)) => Err(e.into()),
+        Err(e) => {
+            if unit > 0 {
+                Err(e.into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
 impl ClientOp {
     pub async fn execute(&self, client: &mut Context, devices: &Devices) -> DynResult<()> {
         match self {
             ClientOp::ReadHoldingRegisters(unit, start, length) => {
-                match tokio::time::timeout(CLIENT_TIMEOUT, {
-                    client.set_slave(Slave(*unit));
+                let data = timed_read_op(client, *unit, |client| {
                     client.read_holding_registers(*start, *length)
                 })
-                .await
-                {
-                    Ok(Ok(Ok(data))) => {
-                        devices.tags_write(*unit, |tags| {
-                            tags.holding_registers.update(*start as usize, &data);
-                        })?;
-                    }
-                    Ok(Ok(Err(code))) => return Err(code.into()),
-                    Ok(Err(e)) => return Err(e.into()),
-                    Err(e) => return Err(e.into()),
-                }
+                .await?;
+                devices.tags_write(*unit, |tags| {
+                    tags.holding_registers.update(*start as usize, &data);
+                })?;
             }
-            /*
-            ClientOp::WriteHoldingRegisters(start, length) => {
-                let data = tags
-                    .holding_registers
-                    .get_array(|r| Vec::from(&r[*start as usize..(*start + *length) as usize]));
-                if *length == 1 {
-                    client.write_single_register(*start, data[0]).await?;
-                } else {
-                    client.write_multiple_registers(*start, &data).await?;
-                }
-            }*/
+            ClientOp::WriteHoldingRegisters(unit, start, length) => {
+                let data = devices.tags_read(*unit, |tags| {
+                    tags.holding_registers
+                        .get_array(|r| Vec::from(&r[*start as usize..(*start + *length) as usize]))
+                })?;
+                timed_write_op(client, *unit, |client| {
+                    if *length == 1 {
+                        client.write_single_register(*start, data[0])
+                    } else {
+                        client.write_multiple_registers(*start, &data)
+                    }
+                })
+                .await?;
+            }
             ClientOp::ReadInputRegisters(unit, start, length) => {
-                match tokio::time::timeout(CLIENT_TIMEOUT, {
-                    client.set_slave(Slave(*unit));
+                let data = timed_read_op(client, *unit, |client| {
                     client.read_input_registers(*start, *length)
                 })
-                .await
-                {
-                    Ok(Ok(Ok(data))) => devices.tags_write(*unit, |tags| {
-                        tags.input_registers.update(*start as usize, &data);
-                    })?,
-                    Ok(Ok(Err(code))) => return Err(code.into()),
-                    Ok(Err(e)) => return Err(e.into()),
-                    Err(e) => return Err(e.into()),
-                }
+                .await?;
+                devices.tags_write(*unit, |tags| {
+                    tags.input_registers.update(*start as usize, &data);
+                })?;
             }
             ClientOp::ReadCoils(unit, start, length) => {
-                match tokio::time::timeout(CLIENT_TIMEOUT, {
-                    client.set_slave(Slave(*unit));
-                    client.read_coils(*start, *length)
-                })
-                .await
-                {
-                    Ok(Ok(Ok(data))) => {
-                        devices.tags_write(*unit, |tags| {
-                            tags.coils.update(*start as usize, &data);
-                        })?;
-                    }
-                    Ok(Ok(Err(code))) => return Err(code.into()),
-                    Ok(Err(e)) => return Err(e.into()),
-                    Err(e) => return Err(e.into()),
-                }
+                let data =
+                    timed_read_op(client, *unit, |client| client.read_coils(*start, *length))
+                        .await?;
+                devices.tags_write(*unit, |tags| {
+                    tags.coils.update(*start as usize, &data);
+                })?;
             }
-            /*
-            ClientOp::WriteCoils(start, length) => {
-                let data = tags
-                    .coils
-                    .get_array(|r| Vec::from(&r[*start as usize..(*start + *length) as usize]));
-                if *length == 1 {
-                    client.write_single_coil(*start, data[0]).await?;
-                } else {
-                    client.write_multiple_coils(*start, &data).await?;
-                }
-            }*/
+
+            ClientOp::WriteCoils(unit, start, length) => {
+                let data = devices.tags_read(*unit, |tags| {
+                    tags.coils
+                        .get_array(|r| Vec::from(&r[*start as usize..(*start + *length) as usize]))
+                })?;
+                timed_write_op(client, *unit, |client| {
+                    if *length == 1 {
+                        client.write_single_coil(*start, data[0])
+                    } else {
+                        client.write_multiple_coils(*start, &data)
+                    }
+                })
+                .await?;
+            }
             ClientOp::ReadDiscreteInputs(unit, start, length) => {
-                match tokio::time::timeout(CLIENT_TIMEOUT, {
-                    client.set_slave(Slave(*unit));
+                let data = timed_read_op(client, *unit, |client| {
                     client.read_discrete_inputs(*start, *length)
                 })
-                .await
-                {
-                    Ok(Ok(Ok(data))) => {
-                        devices.tags_write(*unit, |tags| {
-                            tags.discrete_inputs.update(*start as usize, &data);
-                        })?;
-                    }
-                    Ok(Ok(Err(code))) => return Err(code.into()),
-                    Ok(Err(e)) => return Err(e.into()),
-                    Err(e) => return Err(e.into()),
-                }
+                .await?;
+                devices.tags_write(*unit, |tags| {
+                    tags.discrete_inputs.update(*start as usize, &data);
+                })?;
             }
         }
         Ok(())
@@ -332,26 +353,49 @@ impl ClientOp {
     pub fn read_sequence(devices: &Devices) -> Vec<ClientOp> {
         let mut seq = Vec::new();
         for unit in devices.units() {
-            let ranges = devices.ranges(unit).unwrap();
-            for range in &ranges.holding_registers {
-                Self::push_range(&mut seq, range, READ_REGISTERS_MAX_LEN, |start, length| {
-                    ClientOp::ReadHoldingRegisters(unit, start, length)
-                });
+            if unit > 0 {
+                let ranges = devices.ranges(unit).unwrap();
+                for range in &ranges.holding_registers {
+                    Self::push_range(&mut seq, range, READ_REGISTERS_MAX_LEN, |start, length| {
+                        ClientOp::ReadHoldingRegisters(unit, start, length)
+                    });
+                }
+                for range in &ranges.input_registers {
+                    Self::push_range(&mut seq, range, READ_REGISTERS_MAX_LEN, |start, length| {
+                        ClientOp::ReadInputRegisters(unit, start, length)
+                    });
+                }
+                for range in &ranges.coils {
+                    Self::push_range(&mut seq, range, READ_BITS_MAX_LEN, |start, length| {
+                        ClientOp::ReadCoils(unit, start, length)
+                    });
+                }
+                for range in &ranges.discrete_inputs {
+                    Self::push_range(&mut seq, range, READ_BITS_MAX_LEN, |start, length| {
+                        ClientOp::ReadDiscreteInputs(unit, start, length)
+                    });
+                }
             }
-            for range in &ranges.input_registers {
-                Self::push_range(&mut seq, range, READ_REGISTERS_MAX_LEN, |start, length| {
-                    ClientOp::ReadInputRegisters(unit, start, length)
-                });
-            }
-            for range in &ranges.coils {
-                Self::push_range(&mut seq, range, READ_BITS_MAX_LEN, |start, length| {
-                    ClientOp::ReadCoils(unit, start, length)
-                });
-            }
-            for range in &ranges.discrete_inputs {
-                Self::push_range(&mut seq, range, READ_BITS_MAX_LEN, |start, length| {
-                    ClientOp::ReadDiscreteInputs(unit, start, length)
-                });
+        }
+        seq
+    }
+
+    pub fn write_sequence(devices: &Devices) -> Vec<ClientOp> {
+        let mut seq = Vec::new();
+        for unit in devices.units() {
+            let cyclic = devices.cyclic_write(unit).unwrap();
+            if cyclic {
+                let ranges = devices.ranges(unit).unwrap();
+                for range in &ranges.holding_registers {
+                    Self::push_range(&mut seq, range, WRITE_REGISTERS_MAX_LEN, |start, length| {
+                        ClientOp::WriteHoldingRegisters(unit, start, length)
+                    });
+                }
+                for range in &ranges.coils {
+                    Self::push_range(&mut seq, range, WRITE_BITS_MAX_LEN, |start, length| {
+                        ClientOp::WriteCoils(unit, start, length)
+                    });
+                }
             }
         }
         seq
@@ -374,15 +418,14 @@ async fn handle_poll(
                     tags.holding_registers
                         .get_array(|r| Vec::from(&r[start..start + length]))
                 })?;
-                if length == 1 {
-                    client
-                        .write_single_register(start as u16, data[0])
-                        .await??;
-                } else {
-                    client
-                        .write_multiple_registers(start as u16, &data)
-                        .await??;
-                }
+                timed_write_op(client, unit, |client| {
+                    if length == 1 {
+                        client.write_single_register(start as u16, data[0])
+                    } else {
+                        client.write_multiple_registers(start as u16, &data)
+                    }
+                })
+                .await?;
             }
         }
         Coils(changes) => {
@@ -393,12 +436,14 @@ async fn handle_poll(
                     tags.coils
                         .get_array(|r| Vec::from(&r[start..start + length]))
                 })?;
-
-                if length == 1 {
-                    client.write_single_coil(start as u16, data[0]).await??;
-                } else {
-                    client.write_multiple_coils(start as u16, &data).await??;
-                }
+                timed_write_op(client, unit, |client| {
+                    if length == 1 {
+                        client.write_single_coil(start as u16, data[0])
+                    } else {
+                        client.write_multiple_coils(start as u16, &data)
+                    }
+                })
+                .await?;
             }
         }
         _ => {}
@@ -412,24 +457,42 @@ async fn client_poll(
     options: &ModbusOptions,
 ) -> DynResult<()> {
     let seq = ClientOp::read_sequence(&devices);
-    let mut iter = seq.iter().cycle();
+    let mut read_cycle = seq.iter().cycle();
+
+    let seq = ClientOp::write_sequence(&devices);
+    let mut write_cycle = seq.iter().cycle();
+
     loop {
-        let op = iter.next().unwrap();
-        if let Err(e) = op.execute(client, &devices).await {
-            error!("Failed to read from server: {e}");
-            if let Ok(io_err) = e.downcast::<std::io::Error>() {
-                if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
-                    debug!("Error: {io_err:?}");
-                    return Err(io_err);
+        if let Some(op) = write_cycle.next() {
+            if let Err(e) = op.execute(client, &devices).await {
+                error!("Failed to write to server: {e}");
+                if let Ok(io_err) = e.downcast::<std::io::Error>() {
+                    if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
+                        debug!("Error: {io_err:?}");
+                        return Err(io_err);
+                    }
                 }
             }
         }
+
+        if let Some(op) = read_cycle.next() {
+            if let Err(e) = op.execute(client, &devices).await {
+                error!("Failed to read from server: {e}");
+                if let Ok(io_err) = e.downcast::<std::io::Error>() {
+                    if let std::io::ErrorKind::BrokenPipe = io_err.kind() {
+                        debug!("Error: {io_err:?}");
+                        return Err(io_err);
+                    }
+                }
+            }
+        }
+
         tokio::select! {
             _res = time::sleep(options.poll_interval) => (),
             (unit, updated) = devices.updated() => {
-		if let Err(e) = handle_poll(unit, &updated, client, &devices).await {
-		    error!("Failed to send data to server: {e}");
-		}
+        if let Err(e) = handle_poll(unit, &updated, client, &devices).await {
+            error!("Failed to send data to server: {e}");
+        }
             }
         }
     }

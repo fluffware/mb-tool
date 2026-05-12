@@ -1,8 +1,9 @@
 use crate::tag_list::TagDefList;
-use std::collections::{btree_map, BTreeMap};
+use std::collections::{BTreeMap, btree_map};
 
 pub struct DeviceDef {
     pub addr: u8, // Device or unit address
+    pub cyclic_write: bool,
     pub tags: TagDefList,
 }
 
@@ -22,13 +23,21 @@ impl DeviceDefList {
     }
 
     pub fn devices(&self) -> impl Iterator<Item = &DeviceDef> {
-	self.0.values()
+        self.0.values()
+    }
+
+    pub fn remove(&mut self, addr: u8) -> Option<DeviceDef> {
+        self.0.remove(&addr)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 }
 
 impl<'a> IntoIterator for &'a DeviceDefList {
     type Item = &'a DeviceDef;
-    type IntoIter = btree_map::Values<'a,u8, DeviceDef>;
+    type IntoIter = btree_map::Values<'a, u8, DeviceDef>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.values()
     }

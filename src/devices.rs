@@ -7,6 +7,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct Device {
     unit: u8,
+    cyclic_write: bool,
     tags: Tags,
     ranges: Arc<TagRanges>,
 }
@@ -41,12 +42,14 @@ impl Devices {
         for DeviceDef {
             tags: tag_list,
             addr,
+            cyclic_write,
         } in init
         {
             let tags = Tags::new(&tag_list);
             let ranges = Arc::new(TagRanges::from(&*tag_list));
             let dev = Device {
                 unit: *addr,
+                cyclic_write: *cyclic_write,
                 tags,
                 ranges,
             };
@@ -89,6 +92,12 @@ impl Devices {
             return Err(Error::UnitNotAvailabe);
         };
         Ok(&dev.ranges)
+    }
+    pub fn cyclic_write(&self, unit: u8) -> Result<bool, Error> {
+        let Some(dev) = self.find_unit(unit) else {
+            return Err(Error::UnitNotAvailabe);
+        };
+        Ok(dev.cyclic_write)
     }
 
     pub async fn updated(&self) -> (u8, UpdatedTags) {

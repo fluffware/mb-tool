@@ -65,28 +65,28 @@ class RegisterAreaUpdater {
 	}
 	return dev;
     }
-    constructor(parent, send) {
+    constructor(parents, send) {
         this.send = send;
         {
             let a = new Uint32Array([0x12345678]);
             this.nativeBigEndian = new Uint8Array(a.buffer, a.byteOffset, a.byteLength)[0] == 0x12;
         }
-
-        var values = parent.getElementsByClassName("mb_value");
-        for (let v of values) {
-            let addr_low = parseInt(v.getAttributeNS(MB_NS, "addr-low"));
-            let addr_high = parseInt(v.getAttributeNS(MB_NS, "addr-high"));
-            let unit_addr = parseInt(v.getAttributeNS(MB_NS, "unit-addr"));
-	    let dev = this.get_device(unit_addr);
-            dev.value_map.insert(addr_low, addr_high + 1, v);
-            let inp = v;
-            let mb_values = dev.mb_values;
-            let updater = this;
-            v.addEventListener("change", function (e) {
-                let low = inp.getAttributeNS(MB_NS, "bit-low");
-                let high = inp.getAttributeNS(MB_NS, "bit-high");
-                let disp = inp.getAttributeNS(MB_NS, "value-type") || "integer";
-                switch (disp) {
+	for (parent of parents) {
+            var values = parent.getElementsByClassName("mb_value");
+            for (let v of values) {
+		let addr_low = parseInt(v.getAttributeNS(MB_NS, "addr-low"));
+		let addr_high = parseInt(v.getAttributeNS(MB_NS, "addr-high"));
+		let unit_addr = parseInt(v.getAttributeNS(MB_NS, "unit-addr"));
+		let dev = this.get_device(unit_addr);
+		dev.value_map.insert(addr_low, addr_high + 1, v);
+		let inp = v;
+		let mb_values = dev.mb_values;
+		let updater = this;
+		v.addEventListener("change", function (e) {
+                    let low = inp.getAttributeNS(MB_NS, "bit-low");
+                    let high = inp.getAttributeNS(MB_NS, "bit-high");
+                    let disp = inp.getAttributeNS(MB_NS, "value-type") || "integer";
+                    switch (disp) {
                     case "integer":
                         {
 
@@ -177,26 +177,28 @@ class RegisterAreaUpdater {
                             }
                         }
                         break;
-                }
-                updater.send({
-		    unit_addr: unit_addr,
-                    start: addr_low,
-                    regs: mb_values.slice(addr_low, addr_high + 1)
-                });
-                updater.update_range(unit_addr, addr_low, addr_high);
-            });
-            v.addEventListener("focus", function (e) {
-                updater.focusedElement = inp;
-            });
-            v.addEventListener("blur", function (e) {
-                updater.focusedElement = null;
-                updater.update_range(unit_addr, addr_low, addr_high);
-            });
+                    }
+                    updater.send({
+			unit_addr: unit_addr,
+			start: addr_low,
+			regs: mb_values.slice(addr_low, addr_high + 1)
+                    });
+                    updater.update_range(unit_addr, addr_low, addr_high);
+		});
+		v.addEventListener("focus", function (e) {
+                    updater.focusedElement = inp;
+		});
+		v.addEventListener("blur", function (e) {
+                    updater.focusedElement = null;
+                    updater.update_range(unit_addr, addr_low, addr_high);
+		});
 
-        }
+            }
+	}
     }
 
     update_values(unit_addr, addr, v) {
+	console.log("Unit update: "+unit_addr);
 	let dev = this.get_device(unit_addr);
 	while(addr > dev.mb_values.length) dev.mb_values.push(0);
         dev.mb_values.splice(addr, v.length, ...v);
@@ -210,7 +212,7 @@ class RegisterAreaUpdater {
     update_range(unit_addr, addr_low, addr_high) {
 	let dev = this.get_device(unit_addr);
         let updates = dev.value_map.overlapping(addr_low, addr_high + 1);
-
+	console.log("Unit update_range "+unit_addr)
         for (let update of updates) {
             let inp = update.value;
             if (!(inp === this.focusedElement)) {
@@ -346,37 +348,38 @@ class BitAreaUpdater {
 	}
 	return dev;
     }
-    constructor(parent, send) {
+    constructor(parents, send) {
         this.send = send;
 
         var values = parent.getElementsByClassName("mb_value");
-        for (let v of values) {
-            let addr = parseInt(v.getAttributeNS(MB_NS, "addr"));
-	    let unit_addr = parseInt(v.getAttributeNS(MB_NS, "unit-addr"));
-	    let dev = this.get_device(unit_addr);
-            dev.value_map.insert(addr, addr + 1, v);
-            let inp = v;
-            let mb_values = dev.mb_values;
-            let updater = this;
-            v.addEventListener("change", function (e) {
-                if (inp.type == "checkbox") {
-                    mb_values[addr] = e.target.checked;
-                }                
-                updater.send({
-		    unit_addr: unit_addr,
-                    start: addr,
-                    regs: mb_values.slice(addr, addr + 1)
-                });
-                updater.update_range(unit_addr, addr, addr+1);
-            });
-            v.addEventListener("focus", function (e) {
-                updater.focusedElement = inp;
-            });
-            v.addEventListener("blur", function (e) {
-                updater.focusedElement = null;
-                updater.update_range(unit_addr, addr, addr+1);
-            });
-
+	for (parent of parents) {
+            for (let v of values) {
+		let addr = parseInt(v.getAttributeNS(MB_NS, "addr"));
+		let unit_addr = parseInt(v.getAttributeNS(MB_NS, "unit-addr"));
+		let dev = this.get_device(unit_addr);
+		dev.value_map.insert(addr, addr + 1, v);
+		let inp = v;
+		let mb_values = dev.mb_values;
+		let updater = this;
+		v.addEventListener("change", function (e) {
+                    if (inp.type == "checkbox") {
+			mb_values[addr] = e.target.checked;
+                    }                
+                    updater.send({
+			unit_addr: unit_addr,
+			start: addr,
+			regs: mb_values.slice(addr, addr + 1)
+                    });
+                    updater.update_range(unit_addr, addr, addr+1);
+		});
+		v.addEventListener("focus", function (e) {
+                    updater.focusedElement = inp;
+		});
+		v.addEventListener("blur", function (e) {
+                    updater.focusedElement = null;
+                    updater.update_range(unit_addr, addr, addr+1);
+		});
+	    }
         }
     }
 
@@ -424,7 +427,7 @@ const MB_NS = "http://www.elektro-kapsel.se/xml/mb-tool";
 function setup() {
     ws = new WebSocket(socket_uri());
     
-    var holding_regs_elems = document.getElementById("holding_registers");
+    var holding_regs_elems = document.getElementsByClassName("holding_registers");
     let holding_regs = null;
     if (holding_regs_elems) {
 	holding_regs = new RegisterAreaUpdater(
@@ -434,7 +437,7 @@ function setup() {
 	    });
     }
     
-    var input_regs_elems = document.getElementById("input_registers");
+    var input_regs_elems = document.getElementsByClassName("input_registers");
     let input_regs = null;
     if (input_regs_elems) {
 	input_regs = new RegisterAreaUpdater(
@@ -444,7 +447,7 @@ function setup() {
             });
     }
     
-    var coils_elems = document.getElementById("coils");
+    var coils_elems = document.getElementsByClassName("coils");
     let coils = null;
     if (coils_elems) {
 	coils = new BitAreaUpdater(
@@ -454,7 +457,7 @@ function setup() {
 	    });
     }
     
-    var discrete_inputs_elems = document.getElementById("discrete_inputs");
+    var discrete_inputs_elems = document.getElementsByClassName("discrete_inputs");
     let discrete_inputs = null;
     if (discrete_inputs_elems) {
 	discrete_inputs = new BitAreaUpdater(
@@ -463,11 +466,6 @@ function setup() {
 		ws.send(JSON.stringify({ UpdateDiscreteInputs: data }))
 	    });
     }
-    let echo_count = 0;
-    setInterval(function() {
-	ws.send(JSON.stringify({Echo: echo_count}));
-	echo_count++;
-    }, 1000);
 
     // Collapse groups
     for (g of document.getElementsByClassName("group_block")) {
@@ -490,6 +488,7 @@ function setup() {
     
     // Receive updates
     ws.onmessage = (msg) => {
+	console.log(msg)
         let cmd = JSON.parse(msg.data);
         let holding_registers = cmd.UpdateHoldingRegs;
         if (holding_registers && holding_regs) {
@@ -549,18 +548,12 @@ function setup() {
     };
     ws.onopen = () => {
 	ws.send(JSON.stringify({ ListUnitAddresses: [] }))
-    };
-	/*
-    ws.onopen = () => {
-        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 0, length: 32768 } }))
-        ws.send(JSON.stringify({ RequestHoldingRegs: { start: 32768, length: 32768 } }))
-        ws.send(JSON.stringify({ RequestInputRegs: { start: 0, length: 32768 } }))
-        ws.send(JSON.stringify({ RequestInputRegs: { start: 32768, length: 32768 } }))
 
-	ws.send(JSON.stringify({ RequestCoils: { start: 0, length: 32768 } }))
-        ws.send(JSON.stringify({ RequestCoils: { start: 32768, length: 32768 } }))
-	
-	ws.send(JSON.stringify({ RequestDiscreteInputs: { start: 0, length: 32768 } }))
-        ws.send(JSON.stringify({ RequestDiscreteInputs: { start: 32768, length: 32768 } }))
-    };*/
+	let echo_count = 0;
+	setInterval(function() {
+	    ws.send(JSON.stringify({Echo: echo_count}));
+	    echo_count++;
+	}, 1000);
+    };
+
 }

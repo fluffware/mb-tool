@@ -1,15 +1,18 @@
 use bytes::Bytes;
 use clap::{CommandFactory, FromArgMatches, Parser};
 use log::{debug, error, info};
+use mb_tool::device_list::{DeviceDef, DeviceDefList};
 use mb_tool::device_list_xml;
 use mb_tool::devices::Devices;
 use mb_tool::error::DynResult;
 use mb_tool::modbus_connection::{self, ModbusOptions};
 use mb_tool::observable_array::ObservableArray;
+use mb_tool::tag_list_xml;
 use mb_tool::tags::{Tags, Updated};
 use mb_tool::template;
 use mb_tool::web_server;
 use mb_tool::web_server::{WebsocketConnect, WebsocketReceive, WsSender};
+use mb_tool::xml_common::{NS_V1, NS_V2};
 use roxmltree::Document;
 use rust_embed::RustEmbed;
 use serde_derive::{Deserialize, Serialize};
@@ -90,7 +93,9 @@ impl WebsocketConnect for WsHandler {
         tokio::spawn(async move {
             loop {
                 let (unit_addr, updated) = devices.updated().await;
-		if update_send.is_closed() {break;}
+                if update_send.is_closed() {
+                    break;
+                }
                 devices
                     .tags_read(unit_addr, |tags| {
                         handle_updates(unit_addr, tags, &updated, &update_send)
@@ -98,6 +103,7 @@ impl WebsocketConnect for WsHandler {
                     .unwrap();
             }
         });
+        send.try_send("{\"Startup\": 6}".to_string()).unwrap();
 
         Box::new(WsReceive {
             devices: self.devices.clone(),
@@ -138,7 +144,9 @@ fn ws_request<T, F>(
         )
     });
 
-    let _ = mb_send.send(serde_json::to_string(&reply).unwrap());
+    mb_send
+        .try_send(serde_json::to_string(&reply).unwrap())
+        .unwrap();
 }
 
 fn handle_receive(devices: &Devices, mb_send: &mpsc::Sender<String>, json: &str) {
@@ -285,12 +293,16 @@ fn handle_receive(devices: &Devices, mb_send: &mpsc::Sender<String>, json: &str)
 
                 MbCommands::Echo(count) => {
                     let reply = MbCommands::Echo(count);
-                    let _ = mb_send.send(serde_json::to_string(&reply).unwrap());
+                    let _ = mb_send.try_send(serde_json::to_string(&reply).unwrap());
                 }
                 MbCommands::ListUnitAddresses(_) => {
+                    debug!("ListUnitAddresses");
                     let units = devices.units().collect();
+                    debug!("Units: {:?}", units);
                     let reply = MbCommands::ListUnitAddresses(units);
-                    let _ = mb_send.send(serde_json::to_string(&reply).unwrap());
+                    mb_send
+                        .try_send(serde_json::to_string(&reply).unwrap())
+                        .unwrap();
                 }
             }
         }
@@ -313,7 +325,9 @@ fn handle_updates(unit_addr: u8, tags: &Tags, updated: &Updated, mb_send: &mpsc:
                         regs: Vec::from(&r[range.start..range.end]),
                     });
 
-                let _ = mb_send.send(serde_json::to_string(&cmd).unwrap());
+                mb_send
+                    .try_send(serde_json::to_string(&cmd).unwrap())
+                    .unwrap();
             }
         }
         InputRegisters(ranges) => {
@@ -326,7 +340,9 @@ fn handle_updates(unit_addr: u8, tags: &Tags, updated: &Updated, mb_send: &mpsc:
                         regs: Vec::from(&r[range.start..range.end]),
                     });
 
-                let _ = mb_send.send(serde_json::to_string(&cmd).unwrap());
+                mb_send
+                    .try_send(serde_json::to_string(&cmd).unwrap())
+                    .unwrap();
             }
         }
         Coils(ranges) => {
@@ -337,7 +353,9 @@ fn handle_updates(unit_addr: u8, tags: &Tags, updated: &Updated, mb_send: &mpsc:
                     regs: Vec::from(&r[range.start..range.end]),
                 });
 
-                let _ = mb_send.send(serde_json::to_string(&cmd).unwrap());
+                mb_send
+                    .try_send(serde_json::to_string(&cmd).unwrap())
+                    .unwrap();
             }
         }
         DiscreteInputs(ranges) => {
@@ -350,7 +368,9 @@ fn handle_updates(unit_addr: u8, tags: &Tags, updated: &Updated, mb_send: &mpsc:
                         regs: Vec::from(&r[range.start..range.end]),
                     });
 
-                let _ = mb_send.send(serde_json::to_string(&cmd).unwrap());
+                mb_send
+                    .try_send(serde_json::to_string(&cmd).unwrap())
+                    .unwrap();
             }
         }
     }
@@ -367,8 +387,8 @@ struct CmdArgs {
     #[arg(long)]
     ip_address: Option<Ipv4Addr>,
     /// Modbus address of server
-    #[arg(long, default_value_t = 1)]
-    mb_address: u8,
+    #[arg(long)]
+    mb_address: Option<u8>,
     /// Modbus TCP port
     #[arg(long, default_value_t = 502)]
     ip_port: u16,
@@ -390,6 +410,8 @@ struct CmdArgs {
     /// Time in milliseconds between client polls
     #[arg(long, default_value_t = 100)]
     poll_interval: u64,
+    #[arg(long, default_value_t = false)]
+    cyclic_write: bool,
 }
 
 #[cfg(feature = "webbrowser")]
@@ -399,8 +421,8 @@ mod browser {
     use log::{info, warn};
     use std::future::Future;
     use std::pin::Pin;
-    use tokio::time::sleep;
     use tokio::time::Duration;
+    use tokio::time::sleep;
 
     pub fn add_args(cmd: Command) -> Command {
         cmd.arg(
@@ -465,6 +487,11 @@ struct WebFiles;
 #[folder = "web/templates"]
 struct WebTemplates;
 
+enum ConfigVersion {
+    V1,
+    V2,
+}
+
 #[tokio::main]
 pub async fn main() -> ExitCode {
     tracing_subscriber::fmt::init();
@@ -493,11 +520,53 @@ pub async fn main() -> ExitCode {
     f.read_to_string(&mut xml).unwrap();
     let doc = Document::parse(&xml).unwrap();
     let top = doc.root_element();
-    let device_list = match device_list_xml::parse_device_list(&top) {
-        Ok(l) => l,
-        Err(e) => {
-            error!("Failed to parse '{}': {}", args.tag_list_conf.display(), e);
+    let conf_version = match top.default_namespace() {
+        None => {
+            error!("No namespace for root node");
             return ExitCode::FAILURE;
+        }
+        Some(NS_V1) => ConfigVersion::V1,
+        Some(NS_V2) => ConfigVersion::V2,
+        _ => {
+            error!("Unknown namespace for root node");
+            return ExitCode::FAILURE;
+        }
+    };
+    let device_list = match conf_version {
+        ConfigVersion::V2 => {
+            let mut list = match device_list_xml::parse_device_list(&top) {
+                Ok(l) => l,
+                Err(e) => {
+                    error!("Failed to parse '{}': {}", args.tag_list_conf.display(), e);
+                    return ExitCode::FAILURE;
+                }
+            };
+            if let Some(mb_address) = args.mb_address {
+                // CLI option overrides device address in configuration, if single device
+                if list.len() == 1 {
+                    let addr = list.devices().next().unwrap().addr;
+                    let mut def = list.remove(addr).unwrap();
+                    def.addr = mb_address;
+                    list.insert(def);
+                }
+            }
+            list
+        }
+        ConfigVersion::V1 => {
+            let mut list = DeviceDefList::new();
+            let tags = match tag_list_xml::parse_tag_list(&top) {
+                Ok(l) => l,
+                Err(e) => {
+                    error!("Failed to parse '{}': {}", args.tag_list_conf.display(), e);
+                    return ExitCode::FAILURE;
+                }
+            };
+            list.insert(DeviceDef {
+                addr: args.mb_address.unwrap_or(1),
+                cyclic_write: args.cyclic_write,
+                tags,
+            });
+            list
         }
     };
     let device_list = Arc::new(device_list);
@@ -565,7 +634,7 @@ pub async fn main() -> ExitCode {
                 Ok(ser) => {
                     join = tokio::spawn(modbus_connection::client_rtu(
                         ser,
-                        Slave(args.mb_address),
+                        Slave(args.mb_address.unwrap_or(1)),
                         devices.clone(),
                         mb_options,
                     ));
